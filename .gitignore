@@ -1,0 +1,9 @@
+node_modules/
+.cache/
+vendor/bin/
+release/
+logs/
+*.log
+samples/*_converted*
+samples/*.gif
+docs/screenshots/*.tmp.png
