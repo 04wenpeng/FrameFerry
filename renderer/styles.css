@@ -4062,3 +4062,103 @@ input:focus-visible {
   background: #fff;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16), 0 1px 5px rgba(0, 0, 0, 0.5);
 }
+
+/* ---------- CapCut-style white trim handles ---------- */
+
+.clip-block.is-selected::before,
+.clip-block.is-selected::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.82);
+  pointer-events: none;
+}
+
+.clip-block.is-selected::before {
+  left: 0;
+}
+
+.clip-block.is-selected::after {
+  right: 0;
+}
+
+.clip-handle {
+  width: 14px;
+  background: transparent;
+}
+
+.clip-handle-start {
+  left: 0;
+  transform: none;
+}
+
+.clip-handle-end {
+  right: 0;
+  transform: none;
+}
+
+.clip-handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  background: #f4f4ee;
+  box-shadow:
+    0 0 0 1px rgba(10, 10, 10, 0.55),
+    0 2px 7px rgba(0, 0, 0, 0.45);
+  transition: height 0.12s, width 0.12s, background 0.12s;
+}
+
+.clip-handle:hover::before,
+.clip-handle:active::before {
+  width: 7px;
+  height: 29px;
+  background: #fff;
+}
+
+.clip-handle::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 1px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+  background: rgba(22, 22, 22, 0.42);
+  pointer-events: none;
+}
+
+.clip-handle span {
+  display: none;
+}
+
+.clip-trim-tip {
+  position: absolute;
+  z-index: 9;
+  top: 6px;
+  transform: translateX(-50%);
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  background: rgba(12, 12, 12, 0.92);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.clip-trim-tip[hidden] {
+  display: none;
+}

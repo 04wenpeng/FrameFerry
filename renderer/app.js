@@ -652,6 +652,7 @@ function renderTrimUI() {
       <div class="trim-playhead" id="trim-playhead">
         <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
       </div>
+      <span class="clip-trim-tip" id="clip-trim-tip" hidden></span>
     </div>
     <div class="clip-readout">
       <div class="clip-selected-line">
@@ -1589,6 +1590,13 @@ function bindEvents() {
       const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
       return ratio * duration
     }
+    const tipPosition = () => Math.min(94, Math.max(6, duration ? ((which === 'start' ? clip.start : clip.end) / duration) * 100 : 50))
+    const tip = $('#clip-trim-tip')
+    if (tip) {
+      tip.hidden = false
+      tip.textContent = formatTrimTime(clip.end - clip.start)
+      tip.style.left = `${tipPosition()}%`
+    }
     const refresh = () => {
       const left = duration ? (clip.start / duration) * 100 : 0
       block.style.left = `${left}%`
@@ -1601,6 +1609,10 @@ function bindEvents() {
       if (range) range.textContent = `${formatTrimTime(clip.start)} → ${formatTrimTime(clip.end)}`
       if (selectedDuration) selectedDuration.textContent = formatTrimTime(clip.end - clip.start)
       if (total) total.textContent = formatTrimTime(clips.reduce((sum, item) => sum + (item.end - item.start), 0))
+      if (tip) {
+        tip.textContent = formatTrimTime(clip.end - clip.start)
+        tip.style.left = `${tipPosition()}%`
+      }
       paintTrimPlayhead()
     }
     const move = (pointerEvent) => {
