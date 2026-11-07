@@ -4162,3 +4162,68 @@ input:focus-visible {
 .clip-trim-tip[hidden] {
   display: none;
 }
+
+/* ---------- Outline-only selection: keep footage readable ---------- */
+
+.clip-timeline .trim-film {
+  opacity: 0.97;
+  filter: saturate(1.04) brightness(1.06);
+}
+
+.clip-gap {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.035) 0,
+      rgba(255, 255, 255, 0.035) 4px,
+      transparent 4px,
+      transparent 8px
+    ),
+    #07090c;
+  pointer-events: none;
+}
+
+.clip-block {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  transition: background 0.14s, border-color 0.14s, box-shadow 0.14s;
+}
+
+.clip-block:hover {
+  border-color: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.clip-block.is-selected {
+  border-color: #fff;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.68),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78);
+}
+
+.clip-block-index {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 7, 9, 0.74);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.clip-block-duration {
+  background: rgba(5, 7, 9, 0.7);
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.clip-block.is-selected .clip-block-index {
+  background: #f1f1eb;
+  color: #121212;
+  border-color: #f1f1eb;
+}
+
+.clip-block.is-selected::before,
+.clip-block.is-selected::after {
+  background: rgba(255, 255, 255, 0.55);
+}

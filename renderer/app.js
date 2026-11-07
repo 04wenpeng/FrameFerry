@@ -628,6 +628,19 @@ function renderTrimUI() {
       return `<span class="clip-cut-line" style="left:${pct(clip.start)}%"></span>`
     })
     .join('')
+  const gaps = []
+  let gapCursor = 0
+  for (const clip of clips) {
+    if (clip.start > gapCursor + 0.01) gaps.push({ start: gapCursor, end: clip.start })
+    gapCursor = Math.max(gapCursor, clip.end)
+  }
+  if (gapCursor < duration - 0.01) gaps.push({ start: gapCursor, end: duration })
+  const gapBlocks = gaps
+    .map((gap) => {
+      const left = pct(gap.start)
+      return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
+    })
+    .join('')
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
@@ -646,7 +659,7 @@ function renderTrimUI() {
     </div>
     <div class="clip-timeline" id="clip-timeline">
       ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
-      <div class="clip-dim"></div>
+      ${gapBlocks}
       ${blocks}
       ${cutLines}
       <div class="trim-playhead" id="trim-playhead">
