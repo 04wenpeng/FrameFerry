@@ -39,6 +39,7 @@ const ICONS = {
   scale: '<path d="M12 3v18M5 7h14M7 7l-4 8h8zM17 7l-4 8h8z"/>',
   gem: '<path d="m6 3-4 6 10 12L22 9l-4-6z"/><path d="M2 9h20M8 3l4 18M16 3l-4 18"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
 }
@@ -121,6 +122,44 @@ function outputPathWithFormat(filePath, format) {
   return value.replace(/\.[a-z0-9]{2,5}$/i, '') + `.${format}`
 }
 
+function ensureTrim(file) {
+  const duration = Number(file?.info?.duration) || 0
+  if (!file) return { start: 0, end: 0 }
+  if (!file.trim || !Number.isFinite(file.trim.start) || !Number.isFinite(file.trim.end)) {
+    file.trim = { start: 0, end: duration }
+  }
+  file.trim.start = Math.max(0, Math.min(file.trim.start, duration))
+  file.trim.end = Math.max(file.trim.start, Math.min(file.trim.end, duration))
+  return file.trim
+}
+
+function clipRange(file) {
+  const info = file?.info
+  if (!info) return { start: 0, end: 0, duration: 0 }
+  const trim = ensureTrim(file)
+  return { start: trim.start, end: trim.end, duration: Math.max(0.2, trim.end - trim.start) }
+}
+
+function isFileTrimmed(file) {
+  const info = file?.info
+  if (!info) return false
+  const trim = ensureTrim(file)
+  return trim.start > 0.05 || trim.end < info.duration - 0.05
+}
+
+function formatTrimTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00.0'
+  const tenths = Math.round(seconds * 10)
+  const whole = Math.floor(tenths / 10)
+  const hour = Math.floor(whole / 3600)
+  const minute = Math.floor((whole % 3600) / 60)
+  const second = whole % 60
+  const fraction = tenths % 10
+  return hour > 0
+    ? `${hour}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.${fraction}`
+    : `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.${fraction}`
+}
+
 const FORMAT_META = {
   mp4: { label: 'MP4', note: '通用分享' },
   mov: { label: 'MOV', note: '剪辑交付' },
@@ -157,6 +196,7 @@ const state = {
   defaultOutputDir: '',
   outputPath: '',
   outputEdited: false,
+  trimMode: false,
   jobs: [],
   history: [],
   starting: false,
@@ -194,13 +234,14 @@ function activeInfo() {
   return activeFile()?.info || null
 }
 
-function estimateSize(info, settings) {
+function estimateSize(info, settings, durationOverride) {
   if (!info) return 0
+  const duration = Number(durationOverride) > 0 ? Number(durationOverride) : info.duration
   if (settings.format === 'gif') {
     // 640px 宽、12.5fps、256 色的 GIF 体积与画面复杂度强相关，取实际样本的经验均值。
-    return Math.max(0.8, info.duration * 1.1) * 1024 * 1024
+    return Math.max(0.8, duration * 1.1) * 1024 * 1024
   }
-  if (settings.videoCodec === 'prores') return info.duration * 62 * 1024 * 1024 / 8
+  if (settings.videoCodec === 'prores') return duration * 62 * 1024 * 1024 / 8
   const sourceShort = Math.min(info.video.width, info.video.height) || 1080
   const target = settings.resolution === 'source' ? sourceShort : Math.min(Number(settings.resolution), sourceShort)
   const baseByHeight = { 2160: 26, 1440: 14, 1080: 8, 720: 4, 480: 1.8 }
@@ -211,7 +252,7 @@ function estimateSize(info, settings) {
   if (settings.videoCodec === 'vp9') mbps *= 0.72
   if (settings.fps !== 'source') mbps *= Math.min(1.5, Number(settings.fps) / (info.video.fps || 30))
   const audioMbps = settings.audio ? settings.audioBitrate / 1000 : 0
-  return Math.max(0.2 * 1024 * 1024, (mbps + audioMbps) * 1e6 / 8 * info.duration)
+  return Math.max(0.2 * 1024 * 1024, (mbps + audioMbps) * 1e6 / 8 * duration)
 }
 
 /* ---------- rendering: shell pieces ---------- */
@@ -245,6 +286,7 @@ function renderSourceRail() {
         <span class="source-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
         ${file.status === 'loading' ? '<span class="source-meta is-loading">正在解析媒体…</span>' : ''}
         ${file.status === 'ready' && info ? `<span class="source-meta">${escapeHtml(info.video.resolution.replace(/ /g, ''))} · ${escapeHtml(info.container)}</span>` : ''}
+        ${file.status === 'ready' && info && isFileTrimmed(file) ? `<span class="source-meta is-trim">${icon('scissors', 9)} 片段 ${formatTrimTime(clipRange(file).duration)}</span>` : ''}
         ${file.status === 'error' ? '<span class="source-meta is-error">读取失败 · 点击移除</span>' : ''}
       </span>
       <span class="source-remove" role="button" tabindex="0" title="移除素材" data-remove-id="${file.id}">${icon('x', 13)}</span>
@@ -283,17 +325,22 @@ function renderPreview() {
   $('#preview-engine-text').textContent = '预览就绪'
   $('#preview-engine-chip').classList.remove('is-live')
   $('#system-player').disabled = !file
+  $('#trim-toggle').disabled = !file?.info
+  updateTrimToggle()
 
   if (!file) {
     body.innerHTML = emptyPreviewHtml()
+    renderTrimUI()
     return
   }
   if (file.status === 'loading') {
     body.innerHTML = previewSkeletonHtml()
+    renderTrimUI()
     return
   }
   if (file.status === 'error') {
     body.innerHTML = `<div class="video-stage"><div class="stage-error">${icon('clapperboard', 24)}<p>无法读取这个文件</p><span>${escapeHtml(file.error)}</span></div></div>`
+    renderTrimUI()
     return
   }
 
@@ -322,6 +369,8 @@ function renderPreview() {
         </div>
       </div>
     </div>
+
+    <div id="trim-slot"></div>
 
     <div class="filmstrip-shell">
       <div class="filmstrip-label"><span>关键帧</span><span>${escapeHtml(info.video.fpsLabel)}</span></div>
@@ -385,8 +434,17 @@ function renderPreview() {
   }
   const togglePlay = async () => {
     try {
-      if (video.paused) await video.play()
-      else video.pause()
+      if (video.paused) {
+        const trim = ensureTrim(file)
+        if (video.currentTime < trim.start - 0.01 || video.currentTime >= trim.end - 0.03) {
+          video.currentTime = trim.start
+          ui.currentTime = trim.start
+          paintTimeline()
+        }
+        await video.play()
+      } else {
+        video.pause()
+      }
     } catch {
       showToast('error', '当前视频无法内嵌预览', '仍可正常转换，或使用系统播放器打开。')
     }
@@ -401,7 +459,14 @@ function renderPreview() {
   video.addEventListener('pause', () => { ui.playing = false; paintPlay() })
   video.addEventListener('timeupdate', () => {
     ui.currentTime = video.currentTime
+    const trim = ensureTrim(file)
+    if (video.currentTime >= trim.end - 0.02 && ui.playing) {
+      video.pause()
+      video.currentTime = trim.end
+      ui.currentTime = trim.end
+    }
     paintTimeline()
+    paintTrimPlayhead()
   })
   video.addEventListener('loadedmetadata', () => {
     ui.duration = video.duration || info.duration
@@ -423,8 +488,191 @@ function renderPreview() {
       else await stage.requestFullscreen()
     } catch {}
   })
-  $('#asset-reset').addEventListener('click', () => seek(0))
+  $('#asset-reset').addEventListener('click', () => seek(ensureTrim(file).start))
   timeline.addEventListener('mousedown', () => {})
+  updateTrimToggle()
+  renderTrimUI()
+}
+
+function updateTrimToggle() {
+  const button = $('#trim-toggle')
+  if (!button) return
+  const ready = Boolean(activeFile()?.info)
+  button.disabled = !ready
+  button.classList.toggle('is-active', state.trimMode && ready)
+  const label = $('#trim-toggle-label')
+  if (label) label.textContent = state.trimMode && ready ? '完成剪辑' : '剪辑'
+}
+
+function paintTrimPlayhead() {
+  const playhead = $('#trim-playhead')
+  const info = activeFile()?.info
+  if (!playhead || !info?.duration) return
+  const ratio = Math.min(1, Math.max(0, ui.currentTime / info.duration))
+  playhead.style.left = `${ratio * 100}%`
+}
+
+function renderTrimUI() {
+  const slot = $('#trim-slot')
+  if (!slot) return
+  const file = activeFile()
+  const info = file?.info
+  if (!state.trimMode || !file || !info) {
+    slot.innerHTML = ''
+    updateTrimToggle()
+    return
+  }
+  const trim = ensureTrim(file)
+  const duration = Number(info.duration) || 0
+  const startPct = duration ? (trim.start / duration) * 100 : 0
+  const endPct = duration ? (trim.end / duration) * 100 : 100
+  const clip = clipRange(file)
+
+  slot.innerHTML = `<div class="trim-panel">
+    <div class="trim-head">
+      <div class="trim-head-copy">
+        <span class="eyebrow">CLIP RANGE</span>
+        <span class="trim-head-title">剪辑片段</span>
+        <span class="trim-head-hint">拖动两端选择保留范围，转换时只导出这一段</span>
+      </div>
+      <div class="trim-toolbar">
+        <button class="text-button" data-trim-action="preview">${icon('play', 11)} 预览片段</button>
+        <button class="text-button" data-trim-action="reset">${icon('rotate', 11)} 重置</button>
+        <button class="trim-done" data-trim-action="done">完成</button>
+      </div>
+    </div>
+    <div class="trim-track" id="trim-track">
+      ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
+      <div class="trim-mask trim-mask-left" style="width:${startPct}%"></div>
+      <div class="trim-mask trim-mask-right" style="left:${endPct}%"></div>
+      <div class="trim-selection" style="left:${startPct}%;width:${Math.max(0, endPct - startPct)}%"></div>
+      <button class="trim-handle trim-handle-start" data-trim-handle="start" style="left:${startPct}%" aria-label="设置入点"><span></span></button>
+      <button class="trim-handle trim-handle-end" data-trim-handle="end" style="left:${endPct}%" aria-label="设置出点"><span></span></button>
+      <div class="trim-playhead" id="trim-playhead"></div>
+    </div>
+    <div class="trim-readout">
+      <div class="trim-point">
+        <span class="trim-label">入点</span>
+        <strong id="trim-start-label">${formatTrimTime(trim.start)}</strong>
+        <button class="trim-current" data-trim-action="set-start">用当前帧</button>
+      </div>
+      <div class="trim-length"><span>片段长度</span><strong id="trim-duration-label">${formatTrimTime(clip.duration)}</strong></div>
+      <div class="trim-point is-end">
+        <button class="trim-current" data-trim-action="set-end">用当前帧</button>
+        <strong id="trim-end-label">${formatTrimTime(trim.end)}</strong>
+        <span class="trim-label">出点</span>
+      </div>
+    </div>
+  </div>`
+
+  hydrateIcons(slot)
+  paintTrimPlayhead()
+
+  const track = $('#trim-track')
+  const video = $('#preview-video')
+
+  const refresh = (commit = false) => {
+    const current = ensureTrim(file)
+    const start = duration ? (current.start / duration) * 100 : 0
+    const end = duration ? (current.end / duration) * 100 : 100
+    const selection = $('.trim-selection', slot)
+    const leftMask = $('.trim-mask-left', slot)
+    const rightMask = $('.trim-mask-right', slot)
+    const startHandle = $('.trim-handle-start', slot)
+    const endHandle = $('.trim-handle-end', slot)
+    if (selection) { selection.style.left = `${start}%`; selection.style.width = `${Math.max(0, end - start)}%` }
+    if (leftMask) leftMask.style.width = `${start}%`
+    if (rightMask) rightMask.style.left = `${end}%`
+    if (startHandle) startHandle.style.left = `${start}%`
+    if (endHandle) endHandle.style.left = `${end}%`
+    $('#trim-start-label').textContent = formatTrimTime(current.start)
+    $('#trim-end-label').textContent = formatTrimTime(current.end)
+    $('#trim-duration-label').textContent = formatTrimTime(Math.max(0.2, current.end - current.start))
+    paintTrimPlayhead()
+    if (commit) {
+      renderDock()
+      renderSourceRail()
+    }
+  }
+
+  const seekBoundary = (which, time) => {
+    const current = ensureTrim(file)
+    const value = Math.min(duration, Math.max(0, time))
+    if (which === 'start') current.start = Math.min(value, Math.max(0, current.end - 0.2))
+    else current.end = Math.max(value, Math.min(duration, current.start + 0.2))
+    if (video) {
+      video.pause()
+      try { video.currentTime = which === 'start' ? current.start : current.end } catch {}
+    }
+    refresh()
+  }
+
+  const timeAt = (event) => {
+    const rect = track.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    return ratio * duration
+  }
+
+  slot.querySelector('[data-trim-action="preview"]')?.addEventListener('click', () => {
+    const current = ensureTrim(file)
+    if (!video) return
+    video.pause()
+    video.currentTime = current.start
+    ui.currentTime = current.start
+    paintTrimPlayhead()
+    video.play().catch(() => {})
+  })
+
+  slot.querySelector('[data-trim-action="reset"]')?.addEventListener('click', () => {
+    file.trim = { start: 0, end: duration }
+    if (video) { video.pause(); video.currentTime = 0 }
+    refresh(true)
+  })
+
+  slot.querySelector('[data-trim-action="done"]')?.addEventListener('click', () => {
+    state.trimMode = false
+    updateTrimToggle()
+    renderTrimUI()
+  })
+
+  slot.querySelector('[data-trim-action="set-start"]')?.addEventListener('click', () => {
+    if (video) seekBoundary('start', video.currentTime)
+    refresh(true)
+  })
+
+  slot.querySelector('[data-trim-action="set-end"]')?.addEventListener('click', () => {
+    if (video) seekBoundary('end', video.currentTime)
+    refresh(true)
+  })
+
+  for (const handle of $$('.trim-handle', slot)) {
+    handle.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!video) return
+      const which = handle.dataset.trimHandle
+      video.pause()
+      const move = (moveEvent) => seekBoundary(which, timeAt(moveEvent))
+      const up = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        refresh(true)
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+      seekBoundary(which, timeAt(event))
+    })
+  }
+
+  track.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('.trim-handle')) return
+    if (!video) return
+    video.pause()
+    const next = Math.min(duration, Math.max(0, timeAt(event)))
+    try { video.currentTime = next } catch {}
+    ui.currentTime = next
+    paintTrimPlayhead()
+  })
 }
 
 /* ---------- inspector ---------- */
@@ -605,16 +853,18 @@ function renderDock() {
     : settings.resolution === 'source'
       ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
       : `${settings.resolution}p`
-  const estimate = estimateSize(info, settings)
+  const clip = clipRange(file)
+  const trimmed = isFileTrimmed(file)
+  const estimate = estimateSize(info, settings, ready ? clip.duration : undefined)
   dock.innerHTML = `
     <div id="dock-queue"></div>
     <div class="estimate-row dock-estimate">
       <div><span class="estimate-label">预计输出</span><strong id="estimate-value">${ready ? `约 ${formatBytes(estimate)}` : '—'}</strong></div>
-      <div class="estimate-spec">${settings.format.toUpperCase()} · ${resolutionLabel}${isGif ? '' : ` · ${settings.audio ? `${settings.audioBitrate}k` : '无音轨'}`}</div>
+      <div class="estimate-spec">${settings.format.toUpperCase()} · ${resolutionLabel}${isGif ? '' : ` · ${settings.audio ? `${settings.audioBitrate}k` : '无音轨'}`}${trimmed ? ` · 片段 ${formatTrimTime(clip.duration)}` : ''}</div>
     </div>
     <button class="convert-button" id="convert-button" data-action="start" ${!ready || state.starting ? 'disabled' : ''}>
       ${state.starting ? icon('loader', 17, 'spin') : '<span class="convert-dot"></span>'}
-      <span>${state.starting ? '正在排队…' : '开始转换'}</span>
+      <span>${state.starting ? '正在排队…' : trimmed ? '转换片段' : '开始转换'}</span>
       <span class="convert-right"><kbd>Ctrl ↵</kbd>${icon('arrowRight', 16)}</span>
     </button>
     <div class="convert-note">文件只在本机处理 · 原文件不会被修改</div>`
@@ -730,6 +980,7 @@ async function addFiles(paths) {
       if (!file) return
       file.status = 'ready'
       file.info = info
+      file.trim = { start: 0, end: Number(info.duration) || 0 }
       renderSourceRail()
       if (item.id === state.activeId) {
         renderPreview()
@@ -891,6 +1142,11 @@ async function startConversion() {
     showToast('error', '请先设置输出位置')
     return
   }
+  const clip = clipRange(file)
+  if (file.info.duration && clip.duration < 0.2) {
+    showToast('error', '剪辑片段太短', '入点与出点至少需要间隔 0.2 秒')
+    return
+  }
   state.starting = true
   renderSettings()
   try {
@@ -898,9 +1154,11 @@ async function startConversion() {
       sourcePath: file.path,
       outputPath: state.outputPath,
       meta: file.info,
+      trim: { start: clip.start, end: clip.end },
       settings: state.settings
     })
-    showToast('info', '已加入转换队列', `${file.name} → ${state.settings.format.toUpperCase()}`)
+    const trimmed = isFileTrimmed(file)
+    showToast('info', '已加入转换队列', `${file.name} → ${state.settings.format.toUpperCase()}${trimmed ? ` · 片段 ${formatTrimTime(clip.duration)}` : ''}`)
   } catch (error) {
     showToast('error', '无法开始转换', errorMessage(error))
   } finally {
@@ -1043,6 +1301,20 @@ function bindEvents() {
     const file = activeFile()
     if (file) void api.openPath(file.path)
   })
+  $('#trim-toggle').addEventListener('click', () => {
+    const file = activeFile()
+    if (!file?.info) return
+    state.trimMode = !state.trimMode
+    ensureTrim(file)
+    if (state.trimMode) {
+      const video = $('#preview-video')
+      if (video) {
+        try { video.currentTime = ensureTrim(file).start } catch {}
+      }
+    }
+    updateTrimToggle()
+    renderTrimUI()
+  })
   $('#history-button').addEventListener('click', () => openModal('history'))
   $('#reset-settings').addEventListener('click', () => {
     state.settings = { ...DEFAULT_SETTINGS }
@@ -1149,7 +1421,7 @@ function bindEvents() {
     const percent = ((30 - quality) / 14) * 100
     slider.style.background = `linear-gradient(90deg,var(--accent) 0%,var(--accent) ${percent}%,rgba(255,255,255,.16) ${percent}%)`
     $('#quality-value').textContent = `CRF ${quality}`
-    const estimate = estimateSize(activeInfo(), state.settings)
+    const estimate = estimateSize(activeInfo(), state.settings, clipRange(activeFile()).duration)
     if (activeInfo()) $('#estimate-value').textContent = `约 ${formatBytes(estimate)}`
     const note = quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'
     $('#quality-note').innerHTML = `${icon('sparkles', 12)}${note}`

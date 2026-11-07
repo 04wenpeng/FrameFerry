@@ -32,6 +32,7 @@
 - `docs/screenshots/conversion.png`
 - `docs/screenshots/output-settings.png`
 - `docs/screenshots/gif-settings.png`
+- `docs/screenshots/trim-editor.png`
 
 ## 3. 媒体探测与缩略图
 
@@ -87,6 +88,16 @@
 - ffprobe：视频 `prores / yuv422p10le`，音频 `pcm_s16le`
 - 这一轮修复了此前所有非 GIF 编码统一被强制 `yuv420p` 的问题
 
+### 5.5 剪辑片段
+
+- 操作：对 `Afterglow.mp4` 打开「剪辑」，播放头设为 2.0s 点击「用当前帧」设为入点，再设为 6.0s 出点
+- 界面：入点 `00:02.0`、出点 `00:06.0`、片段长度 `00:04.0`，按钮变为「转换片段」
+- 预计体积：约 3.5 MB
+- 输出：`clip-test.mp4`，3,662,348 bytes
+- ffprobe：时长 **4.000000s**，H.264 + AAC，1920×1080
+- 预览行为：点击「预览片段」后从 2s 播放，到 6s 自动暂停
+- 未剪辑构建参数：不包含 `-ss` / `-t`；剪辑构建参数包含 `-ss 2.500 -t 4.000`
+
 ## 6. 输出路径与任务行为
 
 | 用例 | 结果 |
@@ -102,6 +113,8 @@
 | 清除已完成 | 无运行中任务时清空后 `listJobs()` 返回 `[]`；单元测试确认运行中任务只保留一次 |
 | 关闭应用 | WebM 转码中关闭窗口，3 秒后 `ffmpeg` 与 `FrameFerry` 进程均不存在 |
 | 自定义扩展名 | `custom.mkv` 切到 WebM 后 UI 路径变为 `custom.webm` |
+| 片段剪辑 | 2.0s–6.0s 输出 4.000s，进度/预计体积按片段计算 |
+| 片段预览 | 播放到出点 6.0s 自动暂停 |
 | 音频容器约束 | MP4 即使传入 Opus 也输出 AAC；MKV 可选 Opus；ProRes 输出 PCM |
 | 硬件失败回退 | 代码路径存在；当前机器 AMF 可用，未触发实际失败回退 |
 
@@ -132,6 +145,7 @@
 - 多显示器、高 DPI 200%、Windows 10。
 - 代码签名与 SmartScreen 正式发布流程。
 - 多音频轨/字幕轨选择。
+- 多段拼接、画面裁剪、旋转、滤镜和转场（当前剪辑仅支持单段首尾裁剪）。
 
 ## 9. 复现测试
 

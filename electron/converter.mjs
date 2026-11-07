@@ -104,17 +104,20 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
   const format = settings.format
   const codec = settings.videoCodec
   const hardwareEncoder = useHardware && !forceSoftware ? meta?.hardware?.encoder : null
+  const trimActive = Boolean(settings.trimActive)
+  const trimStart = trimActive ? Math.max(0, Number(settings.trimStart) || 0) : 0
+  const trimEnd = trimActive ? Math.max(0, Number(settings.trimEnd) || 0) : 0
   const args = [
     '-hide_banner',
     '-loglevel', 'warning',
     '-progress', 'pipe:1',
     '-nostats',
-    '-y',
-    '-i', sourcePath,
-    '-map', '0:v:0',
-    '-map', '0:a:0?',
-    '-map_metadata', '0'
+    '-y'
   ]
+  if (trimStart > 0.01) args.push('-ss', trimStart.toFixed(3))
+  args.push('-i', sourcePath)
+  if (trimActive && trimEnd > trimStart + 0.01) args.push('-t', (trimEnd - trimStart).toFixed(3))
+  args.push('-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '0')
 
   const filter = buildVideoFilter(settings, meta)
   if (filter) args.push('-vf', filter)
@@ -235,6 +238,18 @@ export class ConversionQueue {
     if (!FORMAT_CODECS[format].includes(codec)) throw new Error('编码器与容器不兼容')
 
     const meta = input?.meta || {}
+    const sourceDuration = Number(meta.duration) || 0
+    let trimStart = 0
+    let trimEnd = sourceDuration
+    if (sourceDuration > 0) {
+      const rawStart = Number(input?.trim?.start)
+      const rawEnd = Number(input?.trim?.end)
+      trimStart = Number.isFinite(rawStart) ? Math.max(0, Math.min(rawStart, sourceDuration)) : 0
+      trimEnd = Number.isFinite(rawEnd) ? Math.max(trimStart, Math.min(rawEnd, sourceDuration)) : sourceDuration
+      if (trimEnd - trimStart < 0.2) throw new Error('剪辑片段太短，至少保留 0.2 秒')
+    }
+    const trimActive = sourceDuration > 0 && (trimStart > 0.02 || trimEnd < sourceDuration - 0.02)
+    const clipDuration = sourceDuration > 0 ? trimEnd - trimStart : 0
     const requestedOutput = String(input?.outputPath || '')
     const defaultName = `${fileStem(sourcePath)}_converted.${format}`
     let outputPath = path.resolve(requestedOutput || path.join(path.dirname(sourcePath), defaultName))
@@ -260,7 +275,10 @@ export class ConversionQueue {
       audioCodec: input?.settings?.audioCodec || 'aac',
       audioBitrate: clamp(input?.settings?.audioBitrate, 64, 512, 192),
       faststart: input?.settings?.faststart !== false,
-      hardware: input?.settings?.hardware !== false
+      hardware: input?.settings?.hardware !== false,
+      trimActive,
+      trimStart,
+      trimEnd
     }
 
     const job = {
@@ -279,7 +297,10 @@ export class ConversionQueue {
         height: Number(meta.video?.height) || Number(meta.height) || 0,
         fps: Number(meta.video?.fps) || Number(meta.fps) || 0
       },
-      duration: Number(meta.duration) || 0,
+      duration: clipDuration || sourceDuration,
+      trimStart,
+      trimEnd,
+      trimmed: trimActive,
       progress: 0,
       speed: 0,
       fps: 0,
@@ -342,7 +363,10 @@ export class ConversionQueue {
         removeAudio: job.settings?.removeAudio,
         audioCodec: job.settings?.audioCodec,
         audioBitrate: job.settings?.audioBitrate,
-        faststart: job.settings?.faststart
+        faststart: job.settings?.faststart,
+        trimActive: job.settings?.trimActive,
+        trimStart: job.settings?.trimStart,
+        trimEnd: job.settings?.trimEnd
       },
       meta: {
         ...job.meta,
