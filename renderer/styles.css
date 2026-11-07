@@ -4010,3 +4010,55 @@ input:focus-visible {
     gap: 5px;
   }
 }
+
+/* ---------- Jianying-style white playhead / split line ---------- */
+
+.clip-cut-line {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+
+.trim-playhead {
+  pointer-events: none;
+}
+
+.playhead-grip {
+  position: absolute;
+  z-index: 7;
+  top: 0;
+  left: 50%;
+  width: 13px;
+  height: 14px;
+  transform: translateX(-50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.playhead-grip::before {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 2px auto 0;
+  border-radius: 2px 2px 50% 50%;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+}
+
+.playhead-grip:hover::before {
+  width: 9px;
+  height: 9px;
+  margin-top: 1px;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16), 0 1px 5px rgba(0, 0, 0, 0.5);
+}

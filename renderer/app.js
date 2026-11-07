@@ -620,13 +620,21 @@ function renderTrimUI() {
       ${isSelected ? `<button class="clip-handle clip-handle-end" data-clip-handle="end" aria-label="调整片段出点"><span></span></button>` : ''}
     </div>`
   }).join('')
+  const cutLines = clips
+    .map((clip, index) => {
+      if (index === 0) return ''
+      const previous = clips[index - 1]
+      if (Math.abs(previous.end - clip.start) > 0.01) return ''
+      return `<span class="clip-cut-line" style="left:${pct(clip.start)}%"></span>`
+    })
+    .join('')
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
       <div class="trim-head-copy">
         <span class="eyebrow">SPLIT & TRIM</span>
         <span class="trim-head-title">分割与剪辑</span>
-        <span class="trim-head-hint">播放头移到切点后点「分割」；选中片段可拖动两端或删除</span>
+        <span class="trim-head-hint">拖动白线定位，Ctrl+B 或双击白线分割；选中片段可拖两端或删除</span>
       </div>
       <div class="trim-toolbar">
         <button class="text-button" data-clip-action="preview">${icon('play', 11)} 预览成片</button>
@@ -640,7 +648,10 @@ function renderTrimUI() {
       ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
       <div class="clip-dim"></div>
       ${blocks}
-      <div class="trim-playhead" id="trim-playhead"></div>
+      ${cutLines}
+      <div class="trim-playhead" id="trim-playhead">
+        <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
+      </div>
     </div>
     <div class="clip-readout">
       <div class="clip-selected-line">
@@ -1380,6 +1391,7 @@ function historyModalHtml() {
 function shortcutsModalHtml() {
   const rows = [
     ['添加视频', ['Ctrl', 'O']], ['开始转换', ['Ctrl', 'Enter']], ['播放 / 暂停预览', ['Space']],
+    ['在播放头处分割片段', ['Ctrl', 'B']], ['拖动白线定位', ['鼠标拖动']], ['双击白线分割', ['双击']],
     ['关闭菜单或弹窗', ['Esc']], ['最小化窗口', ['Alt', 'Space']]
   ]
   return `<div class="modal-backdrop"><div class="modal" style="width:520px" role="dialog" aria-modal="true">
@@ -1498,7 +1510,61 @@ function bindEvents() {
     handleClipAction(button.dataset.clipAction)
   })
 
+  let lastTimelineClick = { at: 0, x: 0, y: 0 }
   $('#preview-body').addEventListener('pointerdown', (event) => {
+    const timelineElement = event.target.closest('#clip-timeline')
+    if (timelineElement && !event.target.closest('.clip-handle, .playhead-grip')) {
+      const now = performance.now()
+      if (
+        now - lastTimelineClick.at < 360 &&
+        Math.hypot(event.clientX - lastTimelineClick.x, event.clientY - lastTimelineClick.y) < 8
+      ) {
+        lastTimelineClick = { at: 0, x: 0, y: 0 }
+        const file = activeFile()
+        const video = $('#preview-video')
+        if (file?.info && video) {
+          const rect = timelineElement.getBoundingClientRect()
+          const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+          const time = ratio * (Number(file.info.duration) || 0)
+          video.pause()
+          video.currentTime = time
+          ui.currentTime = time
+          paintTrimPlayhead()
+          handleClipAction('split')
+        }
+        return
+      }
+      lastTimelineClick = { at: now, x: event.clientX, y: event.clientY }
+    }
+
+    const grip = event.target.closest('.playhead-grip')
+    if (grip) {
+      const file = activeFile()
+      const timeline = $('#clip-timeline')
+      const video = $('#preview-video')
+      if (!file?.info || !timeline) return
+      const duration = Number(file.info.duration) || 0
+      event.preventDefault()
+      video?.pause()
+      const timeAt = (pointerEvent) => {
+        const rect = timeline.getBoundingClientRect()
+        const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
+        return ratio * duration
+      }
+      const move = (pointerEvent) => {
+        const time = timeAt(pointerEvent)
+        if (video) video.currentTime = time
+        ui.currentTime = time
+        paintTrimPlayhead()
+      }
+      const up = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+      return
+    }
     const handle = event.target.closest('.clip-handle')
     if (!handle) return
     const file = activeFile()
@@ -1680,6 +1746,14 @@ function bindEvents() {
     }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault(); if (!state.modal) void startConversion(); return
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+      if (state.modal) return
+      if (state.trimMode) {
+        event.preventDefault()
+        handleClipAction('split')
+      }
+      return
     }
     if (event.code === 'Space' && activeFile()?.status === 'ready') {
       const target = event.target
