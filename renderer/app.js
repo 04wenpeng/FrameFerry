@@ -122,57 +122,70 @@ function outputPathWithFormat(filePath, format) {
   return value.replace(/\.[a-z0-9]{2,5}$/i, '') + `.${format}`
 }
 
-function ensureTrim(file) {
-  const duration = Number(file?.info?.duration) || 0
-  if (!file) return { start: 0, end: 0, cutEnabled: false, cutStart: 0, cutEnd: 0 }
-  if (!file.trim || !Number.isFinite(file.trim.start) || !Number.isFinite(file.trim.end)) {
-    file.trim = { start: 0, end: duration }
-  }
-  file.trim.start = Math.max(0, Math.min(file.trim.start, duration))
-  file.trim.end = Math.max(file.trim.start, Math.min(file.trim.end, duration))
-  if (typeof file.trim.cutEnabled !== 'boolean') file.trim.cutEnabled = false
-  if (!Number.isFinite(file.trim.cutStart) || !Number.isFinite(file.trim.cutEnd)) {
-    const span = file.trim.end - file.trim.start
-    file.trim.cutStart = file.trim.start + span * 0.34
-    file.trim.cutEnd = file.trim.end - span * 0.34
-  }
-  const span = file.trim.end - file.trim.start
-  if (span >= 0.6) {
-    file.trim.cutStart = Math.max(file.trim.start + 0.2, Math.min(file.trim.cutStart, file.trim.end - 0.4))
-    file.trim.cutEnd = Math.max(file.trim.cutStart + 0.2, Math.min(file.trim.cutEnd, file.trim.end - 0.2))
-  }
-  return file.trim
+function makeClipId() {
+  return globalThis.crypto?.randomUUID?.() || `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function clipRange(file) {
-  const info = file?.info
-  if (!info) return { start: 0, end: 0, duration: 0 }
-  const trim = ensureTrim(file)
-  return { start: trim.start, end: trim.end, duration: Math.max(0.2, trim.end - trim.start) }
+function ensureClips(file) {
+  const duration = Number(file?.info?.duration) || 0
+  if (!file || !duration) return []
+  if (!Array.isArray(file.clips) || !file.clips.length) {
+    // 兼容旧版的 trim / cut 数据结构。
+    const trim = file.trim
+    if (trim && Number.isFinite(trim.start) && Number.isFinite(trim.end)) {
+      if (trim.cutEnabled && Number.isFinite(trim.cutStart) && Number.isFinite(trim.cutEnd)) {
+        file.clips = [
+          { id: makeClipId(), start: trim.start, end: trim.cutStart },
+          { id: makeClipId(), start: trim.cutEnd, end: trim.end }
+        ]
+      } else {
+        file.clips = [{ id: makeClipId(), start: trim.start, end: trim.end }]
+      }
+    } else {
+      file.clips = [{ id: makeClipId(), start: 0, end: duration }]
+    }
+  }
+
+  const normalized = []
+  let previousEnd = 0
+  for (const raw of [...file.clips].sort((a, b) => Number(a.start) - Number(b.start))) {
+    let start = Number(raw.start)
+    let end = Number(raw.end)
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue
+    start = Math.max(start, previousEnd, 0)
+    end = Math.min(end, duration)
+    if (end - start < 0.1) continue
+    normalized.push({ id: raw.id || makeClipId(), start, end })
+    previousEnd = end
+  }
+
+  if (!normalized.length) {
+    normalized.push({ id: makeClipId(), start: 0, end: duration })
+  }
+  file.clips = normalized
+  if (!normalized.some((clip) => clip.id === file.selectedClipId)) {
+    file.selectedClipId = normalized[0].id
+  }
+  return file.clips
 }
 
 function editPlan(file) {
-  const outer = clipRange(file)
-  const trim = ensureTrim(file)
-  const cutEnabled = Boolean(trim.cutEnabled && outer.duration >= 0.6)
-  const cutStart = cutEnabled ? trim.cutStart : 0
-  const cutEnd = cutEnabled ? trim.cutEnd : 0
+  const clips = ensureClips(file)
+  if (!clips.length) return { clips: [], duration: 0, start: 0, end: 0 }
   return {
-    ...outer,
-    cutEnabled,
-    cutStart,
-    cutEnd,
-    duration: cutEnabled
-      ? Math.max(0.2, (cutStart - outer.start) + (outer.end - cutEnd))
-      : outer.duration
+    clips,
+    duration: clips.reduce((sum, clip) => sum + (clip.end - clip.start), 0),
+    start: clips[0].start,
+    end: clips[clips.length - 1].end
   }
 }
 
 function isFileTrimmed(file) {
   const info = file?.info
   if (!info) return false
-  const trim = ensureTrim(file)
-  return trim.start > 0.05 || trim.end < info.duration - 0.05 || trim.cutEnabled
+  const clips = ensureClips(file)
+  if (clips.length > 1) return true
+  return clips[0].start > 0.05 || clips[0].end < info.duration - 0.05
 }
 
 function formatTrimTime(seconds) {
@@ -464,10 +477,14 @@ function renderPreview() {
   const togglePlay = async () => {
     try {
       if (video.paused) {
-        const plan = editPlan(file)
+        const clips = ensureClips(file)
+        if (!clips.length) return
         let target = video.currentTime
-        if (plan.cutEnabled && target >= plan.cutStart - 0.01 && target < plan.cutEnd) target = plan.cutEnd
-        if (target < plan.start - 0.01 || target >= plan.end - 0.03) target = plan.start
+        const inside = clips.find((clip) => target >= clip.start - 0.01 && target < clip.end - 0.03)
+        if (!inside) {
+          const next = clips.find((clip) => clip.start > target - 0.01)
+          target = next ? next.start : clips[0].start
+        }
         if (Math.abs(target - video.currentTime) > 0.01) {
           video.currentTime = target
           ui.currentTime = target
@@ -491,15 +508,34 @@ function renderPreview() {
   video.addEventListener('pause', () => { ui.playing = false; paintPlay() })
   video.addEventListener('timeupdate', () => {
     ui.currentTime = video.currentTime
-    const plan = editPlan(file)
-    if (ui.playing && plan.cutEnabled && video.currentTime >= plan.cutStart - 0.02 && video.currentTime < plan.cutEnd - 0.02) {
-      video.currentTime = plan.cutEnd
-      ui.currentTime = plan.cutEnd
-    }
-    if (video.currentTime >= plan.end - 0.02 && ui.playing) {
-      video.pause()
-      video.currentTime = plan.end
-      ui.currentTime = plan.end
+    const clips = ensureClips(file)
+    if (ui.playing && clips.length) {
+      const index = clips.findIndex((clip) => video.currentTime >= clip.start - 0.02 && video.currentTime < clip.end - 0.02)
+      if (index >= 0) {
+        const clip = clips[index]
+        if (video.currentTime >= clip.end - 0.03) {
+          const next = clips[index + 1]
+          if (next) {
+            video.currentTime = next.start
+            ui.currentTime = next.start
+          } else {
+            video.pause()
+            video.currentTime = clip.end
+            ui.currentTime = clip.end
+          }
+        }
+      } else {
+        const next = clips.find((clip) => clip.start > video.currentTime - 0.01)
+        if (next) {
+          video.currentTime = next.start
+          ui.currentTime = next.start
+        } else {
+          const last = clips[clips.length - 1]
+          video.pause()
+          video.currentTime = last.end
+          ui.currentTime = last.end
+        }
+      }
     }
     paintTimeline()
     paintTrimPlayhead()
@@ -525,7 +561,7 @@ function renderPreview() {
       else await stage.requestFullscreen()
     } catch {}
   })
-  $('#asset-reset').addEventListener('click', () => seek(ensureTrim(file).start))
+  $('#asset-reset').addEventListener('click', () => seek(ensureClips(file)[0]?.start || 0))
   timeline.addEventListener('mousedown', () => {})
   updateTrimToggle()
   renderTrimUI()
@@ -565,230 +601,194 @@ function renderTrimUI() {
     updateTrimToggle()
     return
   }
-  const trim = ensureTrim(file)
+  const clips = ensureClips(file)
   const duration = Number(info.duration) || 0
-  const startPct = duration ? (trim.start / duration) * 100 : 0
-  const endPct = duration ? (trim.end / duration) * 100 : 100
-  const clip = editPlan(file)
-  const cutStartPct = duration ? (clip.cutStart / duration) * 100 : 0
-  const cutEndPct = duration ? (clip.cutEnd / duration) * 100 : 0
-  const cutEnabled = clip.cutEnabled
+  const selectedIndex = Math.max(0, clips.findIndex((clip) => clip.id === file.selectedClipId))
+  const selected = clips[selectedIndex] || clips[0]
+  file.selectedClipId = selected.id
+  const total = clips.reduce((sum, clip) => sum + (clip.end - clip.start), 0)
+  const pct = (value) => duration ? (value / duration) * 100 : 0
 
-  slot.innerHTML = `<div class="trim-panel">
+  const blocks = clips.map((clip, index) => {
+    const left = pct(clip.start)
+    const width = Math.max(0, pct(clip.end) - left)
+    const isSelected = clip.id === selected.id
+    return `<div class="clip-block ${isSelected ? 'is-selected' : ''}" data-clip-id="${clip.id}" style="left:${left}%;width:${width}%">
+      <span class="clip-block-index">${String(index + 1).padStart(2, '0')}</span>
+      <span class="clip-block-duration">${formatTrimTime(clip.end - clip.start)}</span>
+      ${isSelected ? `<button class="clip-handle clip-handle-start" data-clip-handle="start" aria-label="调整片段入点"><span></span></button>` : ''}
+      ${isSelected ? `<button class="clip-handle clip-handle-end" data-clip-handle="end" aria-label="调整片段出点"><span></span></button>` : ''}
+    </div>`
+  }).join('')
+
+  slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
       <div class="trim-head-copy">
-        <span class="eyebrow">CLIP RANGE</span>
-        <span class="trim-head-title">剪辑片段</span>
-        <span class="trim-head-hint">${cutEnabled ? '橙色保留 · 红色删除，转换时自动拼接前后两段' : '拖动两端选择保留范围，转换时只导出这一段'}</span>
+        <span class="eyebrow">SPLIT & TRIM</span>
+        <span class="trim-head-title">分割与剪辑</span>
+        <span class="trim-head-hint">播放头移到切点后点「分割」；选中片段可拖动两端或删除</span>
       </div>
       <div class="trim-toolbar">
-        <button class="text-button" data-trim-action="preview">${icon('play', 11)} 预览片段</button>
-        <button class="text-button trim-cut-toggle ${cutEnabled ? 'is-active' : ''}" data-trim-action="toggle-cut">${icon('trash', 11)} ${cutEnabled ? '取消删除' : '删除中间段'}</button>
-        <button class="text-button" data-trim-action="reset">${icon('rotate', 11)} 重置</button>
-        <button class="trim-done" data-trim-action="done">完成</button>
+        <button class="text-button" data-clip-action="preview">${icon('play', 11)} 预览成片</button>
+        <button class="text-button clip-split" data-clip-action="split">${icon('scissors', 11)} 分割</button>
+        <button class="text-button clip-delete" data-clip-action="delete" ${clips.length <= 1 ? 'disabled' : ''}>${icon('trash', 11)} 删除片段</button>
+        <button class="text-button" data-clip-action="reset">${icon('rotate', 11)} 重置</button>
+        <button class="trim-done" data-clip-action="done">完成</button>
       </div>
     </div>
-    <div class="trim-track" id="trim-track">
+    <div class="clip-timeline" id="clip-timeline">
       ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
-      <div class="trim-mask trim-mask-left" style="width:${startPct}%"></div>
-      <div class="trim-mask trim-mask-right" style="left:${endPct}%"></div>
-      <div class="trim-selection" style="left:${startPct}%;width:${Math.max(0, endPct - startPct)}%"></div>
-      ${cutEnabled ? `<div class="trim-cut-selection" style="left:${cutStartPct}%;width:${Math.max(0, cutEndPct - cutStartPct)}%"><span>删除</span></div>` : ''}
-      <button class="trim-handle trim-handle-start" data-trim-handle="start" style="left:${startPct}%" aria-label="设置入点"><span></span></button>
-      <button class="trim-handle trim-handle-end" data-trim-handle="end" style="left:${endPct}%" aria-label="设置出点"><span></span></button>
-      ${cutEnabled ? `<button class="trim-handle trim-cut-handle trim-cut-handle-start" data-trim-handle="cutStart" style="left:${cutStartPct}%" aria-label="删除区间起点"><span></span></button>` : ''}
-      ${cutEnabled ? `<button class="trim-handle trim-cut-handle trim-cut-handle-end" data-trim-handle="cutEnd" style="left:${cutEndPct}%" aria-label="删除区间终点"><span></span></button>` : ''}
+      <div class="clip-dim"></div>
+      ${blocks}
       <div class="trim-playhead" id="trim-playhead"></div>
     </div>
-    <div class="trim-readout">
-      <div class="trim-point">
-        <span class="trim-label">入点</span>
-        <strong id="trim-start-label">${formatTrimTime(trim.start)}</strong>
-        <button class="trim-current" data-trim-action="set-start">用当前帧</button>
+    <div class="clip-readout">
+      <div class="clip-selected-line">
+        <span class="clip-badge">片段 ${String(selectedIndex + 1).padStart(2, '0')}</span>
+        <strong id="clip-selected-range">${formatTrimTime(selected.start)} → ${formatTrimTime(selected.end)}</strong>
+        <span class="clip-selected-duration" id="clip-selected-duration">${formatTrimTime(selected.end - selected.start)}</span>
       </div>
-      <div class="trim-length"><span>${cutEnabled ? '保留长度' : '片段长度'}</span><strong id="trim-duration-label">${formatTrimTime(clip.duration)}</strong></div>
-      <div class="trim-point is-end">
-        <button class="trim-current" data-trim-action="set-end">用当前帧</button>
-        <strong id="trim-end-label">${formatTrimTime(trim.end)}</strong>
-        <span class="trim-label">出点</span>
-      </div>
+      <div class="clip-total">共 <b id="clip-total-count">${clips.length}</b> 段 · 成片 <strong id="clip-total-duration">${formatTrimTime(total)}</strong></div>
     </div>
-    ${cutEnabled ? `<div class="trim-cut-readout">
-      <span class="trim-cut-badge">${icon('trash', 10)} 删除中间</span>
-      <strong id="trim-cut-start-label">${formatTrimTime(clip.cutStart)}</strong>
-      <button class="trim-current" data-trim-action="set-cut-start">用当前帧</button>
-      <span class="trim-cut-arrow">→</span>
-      <strong id="trim-cut-end-label">${formatTrimTime(clip.cutEnd)}</strong>
-      <button class="trim-current" data-trim-action="set-cut-end">用当前帧</button>
-      <span class="trim-cut-total">删除 <b id="trim-cut-duration-label">${formatTrimTime(clip.cutEnd - clip.cutStart)}</b></span>
-    </div>` : ''}
   </div>`
 
   hydrateIcons(slot)
   paintTrimPlayhead()
 
-  const track = $('#trim-track')
+  const timeline = $('#clip-timeline')
   const video = $('#preview-video')
-
-  const refresh = (commit = false) => {
-    const current = ensureTrim(file)
-    const plan = editPlan(file)
-    const start = duration ? (current.start / duration) * 100 : 0
-    const end = duration ? (current.end / duration) * 100 : 100
-    const cutStart = duration ? (plan.cutStart / duration) * 100 : 0
-    const cutEnd = duration ? (plan.cutEnd / duration) * 100 : 0
-    const selection = $('.trim-selection', slot)
-    const leftMask = $('.trim-mask-left', slot)
-    const rightMask = $('.trim-mask-right', slot)
-    const startHandle = $('.trim-handle-start', slot)
-    const endHandle = $('.trim-handle-end', slot)
-    const cutSelection = $('.trim-cut-selection', slot)
-    const cutStartHandle = $('.trim-cut-handle-start', slot)
-    const cutEndHandle = $('.trim-cut-handle-end', slot)
-    if (selection) { selection.style.left = `${start}%`; selection.style.width = `${Math.max(0, end - start)}%` }
-    if (leftMask) leftMask.style.width = `${start}%`
-    if (rightMask) rightMask.style.left = `${end}%`
-    if (startHandle) startHandle.style.left = `${start}%`
-    if (endHandle) endHandle.style.left = `${end}%`
-    if (cutSelection) { cutSelection.style.left = `${cutStart}%`; cutSelection.style.width = `${Math.max(0, cutEnd - cutStart)}%` }
-    if (cutStartHandle) cutStartHandle.style.left = `${cutStart}%`
-    if (cutEndHandle) cutEndHandle.style.left = `${cutEnd}%`
-    $('#trim-start-label').textContent = formatTrimTime(current.start)
-    $('#trim-end-label').textContent = formatTrimTime(current.end)
-    $('#trim-duration-label').textContent = formatTrimTime(plan.duration)
-    const cutStartLabel = $('#trim-cut-start-label')
-    const cutEndLabel = $('#trim-cut-end-label')
-    const cutDurationLabel = $('#trim-cut-duration-label')
-    if (cutStartLabel) cutStartLabel.textContent = formatTrimTime(plan.cutStart)
-    if (cutEndLabel) cutEndLabel.textContent = formatTrimTime(plan.cutEnd)
-    if (cutDurationLabel) cutDurationLabel.textContent = formatTrimTime(plan.cutEnd - plan.cutStart)
+  const commit = () => {
+    renderDock()
+    renderSourceRail()
+  }
+  const seek = (time) => {
+    if (!video) return
+    video.pause()
+    const next = Math.min(duration, Math.max(0, time))
+    video.currentTime = next
+    ui.currentTime = next
     paintTrimPlayhead()
-    if (commit) {
-      renderDock()
-      renderSourceRail()
-    }
   }
-
-  const seekBoundary = (which, time) => {
-    const current = ensureTrim(file)
-    const value = Math.min(duration, Math.max(0, time))
-    if (which === 'start') {
-      current.start = Math.min(value, Math.max(0, current.end - 0.2))
-    } else if (which === 'end') {
-      current.end = Math.max(value, Math.min(duration, current.start + 0.2))
-    } else if (which === 'cutStart') {
-      current.cutStart = Math.max(current.start + 0.2, Math.min(value, current.cutEnd - 0.2))
-    } else if (which === 'cutEnd') {
-      current.cutEnd = Math.min(current.end - 0.2, Math.max(value, current.cutStart + 0.2))
-    }
-    if (current.end - current.start < 0.6) current.cutEnabled = false
-    const boundary = which === 'start' ? current.start
-      : which === 'end' ? current.end
-        : which === 'cutStart' ? current.cutStart
-          : current.cutEnd
-    if (video) {
-      video.pause()
-      try { video.currentTime = boundary } catch {}
-    }
-    refresh()
-  }
-
   const timeAt = (event) => {
-    const rect = track.getBoundingClientRect()
+    const rect = timeline.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
     return ratio * duration
   }
+  const updateLive = (clip) => {
+    const block = slot.querySelector(`[data-clip-id="${clip.id}"]`)
+    if (block) {
+      const left = pct(clip.start)
+      block.style.left = `${left}%`
+      block.style.width = `${Math.max(0, pct(clip.end) - left)}%`
+      const durationLabel = $('.clip-block-duration', block)
+      if (durationLabel) durationLabel.textContent = formatTrimTime(clip.end - clip.start)
+    }
+    const range = $('#clip-selected-range')
+    const selectedDuration = $('#clip-selected-duration')
+    const totalLabel = $('#clip-total-duration')
+    if (range) range.textContent = `${formatTrimTime(clip.start)} → ${formatTrimTime(clip.end)}`
+    if (selectedDuration) selectedDuration.textContent = formatTrimTime(clip.end - clip.start)
+    if (totalLabel) totalLabel.textContent = formatTrimTime(clips.reduce((sum, item) => sum + (item.end - item.start), 0))
+    paintTrimPlayhead()
+  }
 
-  slot.querySelector('[data-trim-action="preview"]')?.addEventListener('click', () => {
-    const current = ensureTrim(file)
+  $$('.clip-block', slot).forEach((block) => {
+    block.addEventListener('click', (event) => {
+      if (event.target.closest('.clip-handle')) return
+      const clip = clips.find((item) => item.id === block.dataset.clipId)
+      if (!clip) return
+      file.selectedClipId = clip.id
+      seek(Math.min(clip.end, Math.max(clip.start, timeAt(event))))
+      renderTrimUI()
+    })
+  })
+
+  timeline.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('.clip-block')) return
+    if (event.target.closest('.clip-handle')) return
     if (!video) return
     video.pause()
-    video.currentTime = current.start
-    ui.currentTime = current.start
+    const time = Math.min(duration, Math.max(0, timeAt(event)))
+    video.currentTime = time
+    ui.currentTime = time
+    paintTrimPlayhead()
+  })
+
+}
+
+function handleClipAction(action) {
+  const file = activeFile()
+  if (!file?.info) return
+  const clips = ensureClips(file)
+  const video = $('#preview-video')
+  const selected = clips.find((clip) => clip.id === file.selectedClipId) || clips[0]
+  if (!selected) return
+  const commit = () => {
+    renderDock()
+    renderSourceRail()
+  }
+
+  if (action === 'preview') {
+    if (!video) return
+    video.pause()
+    video.currentTime = selected.start
+    ui.currentTime = selected.start
     paintTrimPlayhead()
     video.play().catch(() => {})
-  })
+    return
+  }
 
-  slot.querySelector('[data-trim-action="reset"]')?.addEventListener('click', () => {
-    file.trim = { start: 0, end: duration }
+  if (action === 'split') {
+    const time = video?.currentTime ?? selected.start
+    const index = clips.findIndex((clip) => time > clip.start + 0.2 && time < clip.end - 0.2)
+    if (index < 0) {
+      showToast('info', '无法在这里分割', '播放头需要位于某个片段内部，且距离两端至少 0.2 秒')
+      return
+    }
+    const source = clips[index]
+    const right = { id: makeClipId(), start: time, end: source.end }
+    source.end = time
+    clips.splice(index + 1, 0, right)
+    file.selectedClipId = right.id
+    if (video) { video.pause(); video.currentTime = time }
+    ui.currentTime = time
+    renderTrimUI()
+    commit()
+    return
+  }
+
+  if (action === 'delete') {
+    if (clips.length <= 1) {
+      showToast('info', '至少保留一个片段')
+      return
+    }
+    const index = clips.findIndex((clip) => clip.id === file.selectedClipId)
+    if (index < 0) return
+    clips.splice(index, 1)
+    const next = clips[Math.min(index, clips.length - 1)]
+    file.selectedClipId = next.id
+    if (video) { video.pause(); video.currentTime = next.start }
+    ui.currentTime = next.start
+    renderTrimUI()
+    commit()
+    return
+  }
+
+  if (action === 'reset') {
+    file.clips = [{ id: makeClipId(), start: 0, end: Number(file.info.duration) || 0 }]
+    file.selectedClipId = file.clips[0].id
     if (video) { video.pause(); video.currentTime = 0 }
-    refresh(true)
-  })
+    ui.currentTime = 0
+    renderTrimUI()
+    commit()
+    return
+  }
 
-  slot.querySelector('[data-trim-action="done"]')?.addEventListener('click', () => {
+  if (action === 'done') {
     state.trimMode = false
     updateTrimToggle()
     renderTrimUI()
-  })
-
-  slot.querySelector('[data-trim-action="set-start"]')?.addEventListener('click', () => {
-    if (video) seekBoundary('start', video.currentTime)
-    refresh(true)
-  })
-
-  slot.querySelector('[data-trim-action="set-end"]')?.addEventListener('click', () => {
-    if (video) seekBoundary('end', video.currentTime)
-    refresh(true)
-  })
-
-  slot.querySelector('[data-trim-action="toggle-cut"]')?.addEventListener('click', () => {
-    const current = ensureTrim(file)
-    if (!current.cutEnabled) {
-      const span = current.end - current.start
-      if (span < 0.6) {
-        showToast('info', '片段太短', '至少保留 0.6 秒，才能再删除中间的一段')
-        return
-      }
-      current.cutEnabled = true
-      const edge = Math.max(0.2, Math.min(span * 0.34, (span - 0.4) / 2))
-      current.cutStart = current.start + edge
-      current.cutEnd = current.end - edge
-    } else {
-      current.cutEnabled = false
-    }
-    renderTrimUI()
-    renderDock()
-    renderSourceRail()
-  })
-
-  slot.querySelector('[data-trim-action="set-cut-start"]')?.addEventListener('click', () => {
-    if (video) seekBoundary('cutStart', video.currentTime)
-    refresh(true)
-  })
-
-  slot.querySelector('[data-trim-action="set-cut-end"]')?.addEventListener('click', () => {
-    if (video) seekBoundary('cutEnd', video.currentTime)
-    refresh(true)
-  })
-
-  for (const handle of $$('.trim-handle', slot)) {
-    handle.addEventListener('pointerdown', (event) => {
-      event.preventDefault()
-      event.stopPropagation()
-      if (!video) return
-      const which = handle.dataset.trimHandle
-      video.pause()
-      const move = (moveEvent) => seekBoundary(which, timeAt(moveEvent))
-      const up = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', up)
-        refresh(true)
-      }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', up)
-      seekBoundary(which, timeAt(event))
-    })
   }
-
-  track.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('.trim-handle')) return
-    if (!video) return
-    video.pause()
-    const next = Math.min(duration, Math.max(0, timeAt(event)))
-    try { video.currentTime = next } catch {}
-    ui.currentTime = next
-    paintTrimPlayhead()
-  })
 }
 
 /* ---------- inspector ---------- */
@@ -1096,7 +1096,8 @@ async function addFiles(paths) {
       if (!file) return
       file.status = 'ready'
       file.info = info
-      file.trim = { start: 0, end: Number(info.duration) || 0 }
+      file.clips = [{ id: makeClipId(), start: 0, end: Number(info.duration) || 0 }]
+      file.selectedClipId = file.clips[0].id
       renderSourceRail()
       if (item.id === state.activeId) {
         renderPreview()
@@ -1270,13 +1271,7 @@ async function startConversion() {
       sourcePath: file.path,
       outputPath: state.outputPath,
       meta: file.info,
-      trim: {
-        start: clip.start,
-        end: clip.end,
-        cutEnabled: clip.cutEnabled,
-        cutStart: clip.cutStart,
-        cutEnd: clip.cutEnd
-      },
+      clips: clip.clips.map((item) => ({ start: item.start, end: item.end })),
       settings: state.settings
     })
     const trimmed = isFileTrimmed(file)
@@ -1427,11 +1422,12 @@ function bindEvents() {
     const file = activeFile()
     if (!file?.info) return
     state.trimMode = !state.trimMode
-    ensureTrim(file)
+    const clips = ensureClips(file)
     if (state.trimMode) {
       const video = $('#preview-video')
-      if (video) {
-        try { video.currentTime = ensureTrim(file).start } catch {}
+      const selected = clips.find((clip) => clip.id === file.selectedClipId) || clips[0]
+      if (video && selected) {
+        try { video.currentTime = selected.start } catch {}
       }
     }
     updateTrimToggle()
@@ -1494,6 +1490,75 @@ function bindEvents() {
       const file = activeFile()
       if (file) void api.showItemInFolder(file.path)
     }
+  })
+
+  $('#preview-body').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-clip-action]')
+    if (!button || button.disabled) return
+    handleClipAction(button.dataset.clipAction)
+  })
+
+  $('#preview-body').addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest('.clip-handle')
+    if (!handle) return
+    const file = activeFile()
+    const block = handle.closest('.clip-block')
+    const timeline = $('#clip-timeline')
+    const video = $('#preview-video')
+    if (!file?.info || !block || !timeline) return
+    const clips = ensureClips(file)
+    const clip = clips.find((item) => item.id === block.dataset.clipId)
+    if (!clip) return
+    const index = clips.indexOf(clip)
+    const duration = Number(file.info.duration) || 0
+    const which = handle.dataset.clipHandle
+    const prevEnd = index > 0 ? clips[index - 1].end : 0
+    const nextStart = index < clips.length - 1 ? clips[index + 1].start : duration
+    event.preventDefault()
+    event.stopPropagation()
+    video?.pause()
+
+    const timeAt = (pointerEvent) => {
+      const rect = timeline.getBoundingClientRect()
+      const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
+      return ratio * duration
+    }
+    const refresh = () => {
+      const left = duration ? (clip.start / duration) * 100 : 0
+      block.style.left = `${left}%`
+      block.style.width = `${Math.max(0, (duration ? (clip.end / duration) * 100 : 0) - left)}%`
+      const blockDuration = $('.clip-block-duration', block)
+      if (blockDuration) blockDuration.textContent = formatTrimTime(clip.end - clip.start)
+      const range = $('#clip-selected-range')
+      const selectedDuration = $('#clip-selected-duration')
+      const total = $('#clip-total-duration')
+      if (range) range.textContent = `${formatTrimTime(clip.start)} → ${formatTrimTime(clip.end)}`
+      if (selectedDuration) selectedDuration.textContent = formatTrimTime(clip.end - clip.start)
+      if (total) total.textContent = formatTrimTime(clips.reduce((sum, item) => sum + (item.end - item.start), 0))
+      paintTrimPlayhead()
+    }
+    const move = (pointerEvent) => {
+      const time = timeAt(pointerEvent)
+      if (which === 'start') {
+        clip.start = Math.max(prevEnd, Math.min(time, clip.end - 0.2))
+        if (video) video.currentTime = clip.start
+        ui.currentTime = clip.start
+      } else {
+        clip.end = Math.min(nextStart, Math.max(time, clip.start + 0.2))
+        if (video) video.currentTime = clip.end
+        ui.currentTime = clip.end
+      }
+      refresh()
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      renderTrimUI()
+      renderDock()
+      renderSourceRail()
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   })
 
   $('#settings-root').addEventListener('click', (event) => {

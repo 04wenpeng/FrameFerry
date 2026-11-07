@@ -104,15 +104,15 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
   const format = settings.format
   const codec = settings.videoCodec
   const hardwareEncoder = useHardware && !forceSoftware ? meta?.hardware?.encoder : null
-  const trimActive = Boolean(settings.trimActive)
-  const cutEnabled = Boolean(settings.cutEnabled)
-  const trimStart = trimActive || cutEnabled ? Math.max(0, Number(settings.trimStart) || 0) : 0
-  const trimEnd = trimActive || cutEnabled ? Math.max(0, Number(settings.trimEnd) || 0) : 0
-  const cutStart = cutEnabled ? Number(settings.cutStart) || trimStart : 0
-  const cutEnd = cutEnabled ? Number(settings.cutEnd) || trimEnd : 0
+  const segments = Array.isArray(settings.clips) && settings.clips.length
+    ? settings.clips
+    : [{ start: 0, end: Number(meta?.duration) || 0 }]
+  const sourceDuration = Number(meta?.duration) || 0
+  const first = segments[0]
+  const single = segments.length === 1
   const wantsAudio = settings.audio !== false && format !== 'gif'
   const hasAudio = Boolean(meta?.hasAudio)
-  const audioInOutput = wantsAudio && (!cutEnabled || hasAudio)
+  const audioInOutput = wantsAudio && hasAudio
   const filter = buildVideoFilter(settings, meta)
   const args = [
     '-hide_banner',
@@ -121,20 +121,21 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
     '-nostats',
     '-y'
   ]
-  if (!cutEnabled) {
-    if (trimStart > 0.01) args.push('-ss', trimStart.toFixed(3))
-    args.push('-i', sourcePath)
-    if (trimActive && trimEnd > trimStart + 0.01) args.push('-t', (trimEnd - trimStart).toFixed(3))
-  } else {
-    args.push('-i', sourcePath)
+
+  if (single) {
+    if (first.start > 0.01) args.push('-ss', first.start.toFixed(3))
   }
+  args.push('-i', sourcePath)
   args.push('-map_metadata', '0')
 
-  if (cutEnabled) {
-    const segments = [
-      { start: trimStart, end: cutStart },
-      { start: cutEnd, end: trimEnd }
-    ]
+  if (single) {
+    if (sourceDuration > 0 && first.end - first.start < sourceDuration - 0.01) {
+      args.push('-t', (first.end - first.start).toFixed(3))
+    }
+    args.push('-map', '0:v:0')
+    if (wantsAudio) args.push('-map', '0:a:0?')
+    if (filter) args.push('-vf', filter)
+  } else {
     const graph = []
     for (let index = 0; index < segments.length; index += 1) {
       const segment = segments[index]
@@ -157,10 +158,6 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
     args.push('-filter_complex', graph.join(';'))
     args.push('-map', '[vout]')
     if (audioInOutput) args.push('-map', '[acat]')
-  } else {
-    args.push('-map', '0:v:0')
-    if (wantsAudio) args.push('-map', '0:a:0?')
-    if (filter) args.push('-vf', filter)
   }
 
   if (format === 'gif') {
@@ -280,35 +277,51 @@ export class ConversionQueue {
 
     const meta = input?.meta || {}
     const sourceDuration = Number(meta.duration) || 0
-    let trimStart = 0
-    let trimEnd = sourceDuration
-    if (sourceDuration > 0) {
-      const rawStart = Number(input?.trim?.start)
-      const rawEnd = Number(input?.trim?.end)
-      trimStart = Number.isFinite(rawStart) ? Math.max(0, Math.min(rawStart, sourceDuration)) : 0
-      trimEnd = Number.isFinite(rawEnd) ? Math.max(trimStart, Math.min(rawEnd, sourceDuration)) : sourceDuration
-      if (trimEnd - trimStart < 0.2) throw new Error('剪辑片段太短，至少保留 0.2 秒')
-    }
-    const trimActive = sourceDuration > 0 && (trimStart > 0.02 || trimEnd < sourceDuration - 0.02)
-    let cutEnabled = Boolean(input?.trim?.cutEnabled)
-    let cutStart = 0
-    let cutEnd = 0
-    if (cutEnabled) {
-      if (trimEnd - trimStart < 0.6) throw new Error('片段太短：至少保留 0.6 秒才能删除中间段')
-      cutStart = Number(input?.trim?.cutStart)
-      cutEnd = Number(input?.trim?.cutEnd)
-      if (!Number.isFinite(cutStart) || !Number.isFinite(cutEnd)) {
-        throw new Error('删除中间段缺少有效的入点/出点')
+    const segments = []
+
+    if (Array.isArray(input?.clips) && input.clips.length) {
+      let cursor = 0
+      const sorted = [...input.clips].sort((a, b) => Number(a.start) - Number(b.start))
+      for (const raw of sorted) {
+        let start = Number(raw.start)
+        let end = Number(raw.end)
+        if (!Number.isFinite(start) || !Number.isFinite(end)) continue
+        start = Math.max(0, start)
+        if (sourceDuration > 0) end = Math.min(sourceDuration, end)
+        start = Math.max(start, cursor)
+        if (end - start < 0.1) continue
+        segments.push({ start, end })
+        cursor = end
       }
-      cutStart = Math.max(trimStart + 0.2, Math.min(cutStart, trimEnd - 0.4))
-      cutEnd = Math.max(cutStart + 0.2, Math.min(cutEnd, trimEnd - 0.2))
-      if (cutStart - trimStart < 0.2 || trimEnd - cutEnd < 0.2 || cutEnd - cutStart < 0.2) {
-        throw new Error('删除中间段后，前后两段都至少需要保留 0.2 秒')
+    } else if (input?.trim) {
+      // 兼容旧版 trim / 中间删除载荷。
+      let trimStart = 0
+      let trimEnd = sourceDuration
+      if (sourceDuration > 0) {
+        const rawStart = Number(input.trim.start)
+        const rawEnd = Number(input.trim.end)
+        trimStart = Number.isFinite(rawStart) ? Math.max(0, Math.min(rawStart, sourceDuration)) : 0
+        trimEnd = Number.isFinite(rawEnd) ? Math.max(trimStart, Math.min(rawEnd, sourceDuration)) : sourceDuration
       }
+      if (input.trim.cutEnabled) {
+        const cutStart = Number(input.trim.cutStart)
+        const cutEnd = Number(input.trim.cutEnd)
+        if (Number.isFinite(cutStart) && Number.isFinite(cutEnd) && cutStart > trimStart && cutEnd < trimEnd) {
+          segments.push({ start: trimStart, end: cutStart }, { start: cutEnd, end: trimEnd })
+        }
+      } else {
+        segments.push({ start: trimStart, end: trimEnd })
+      }
+    } else {
+      segments.push({ start: 0, end: sourceDuration })
     }
-    const clipDuration = sourceDuration > 0
-      ? (cutEnabled ? (trimEnd - trimStart) - (cutEnd - cutStart) : trimEnd - trimStart)
-      : 0
+
+    const validSegments = segments.filter((segment) => segment.end - segment.start >= 0.1)
+    if (!validSegments.length) throw new Error('没有可导出的视频片段')
+    const clipDuration = validSegments.reduce((sum, segment) => sum + (segment.end - segment.start), 0)
+    if (clipDuration < 0.2) throw new Error('成片长度太短，至少保留 0.2 秒')
+    const trimStart = validSegments[0].start
+    const trimEnd = validSegments[validSegments.length - 1].end
     const requestedOutput = String(input?.outputPath || '')
     const defaultName = `${fileStem(sourcePath)}_converted.${format}`
     let outputPath = path.resolve(requestedOutput || path.join(path.dirname(sourcePath), defaultName))
@@ -335,12 +348,7 @@ export class ConversionQueue {
       audioBitrate: clamp(input?.settings?.audioBitrate, 64, 512, 192),
       faststart: input?.settings?.faststart !== false,
       hardware: input?.settings?.hardware !== false,
-      trimActive,
-      trimStart,
-      trimEnd,
-      cutEnabled,
-      cutStart,
-      cutEnd
+      clips: validSegments
     }
 
     const job = {
@@ -358,15 +366,14 @@ export class ConversionQueue {
         width: Number(meta.video?.width) || Number(meta.width) || 0,
         height: Number(meta.video?.height) || Number(meta.height) || 0,
         fps: Number(meta.video?.fps) || Number(meta.fps) || 0,
-        hasAudio: Boolean(meta.hasAudio)
+        hasAudio: Boolean(meta.hasAudio),
+        duration: sourceDuration
       },
       duration: clipDuration || sourceDuration,
       trimStart,
       trimEnd,
-      cutStart: cutEnabled ? cutStart : 0,
-      cutEnd: cutEnabled ? cutEnd : 0,
-      trimmed: trimActive || cutEnabled,
-      cutMiddle: cutEnabled,
+      clipCount: validSegments.length,
+      trimmed: !(validSegments.length === 1 && trimStart < 0.02 && trimEnd > sourceDuration - 0.02),
       progress: 0,
       speed: 0,
       fps: 0,
@@ -430,12 +437,7 @@ export class ConversionQueue {
         audioCodec: job.settings?.audioCodec,
         audioBitrate: job.settings?.audioBitrate,
         faststart: job.settings?.faststart,
-        trimActive: job.settings?.trimActive,
-        trimStart: job.settings?.trimStart,
-        trimEnd: job.settings?.trimEnd,
-        cutEnabled: job.settings?.cutEnabled,
-        cutStart: job.settings?.cutStart,
-        cutEnd: job.settings?.cutEnd
+        clips: job.settings?.clips
       },
       meta: {
         ...job.meta,
