@@ -38,8 +38,11 @@ E:\FrameFerry\FrameFerry.exe
 - **素材库**：真实缩略图、时长与分辨率；单击切换，悬停移除；窗口任意位置拖入视频。
 - **工作台**：画面预览、自定义播放控制、关键帧胶片条、媒体检查器。
 - **输出设置**：场景预设、容器/编码器联动、恒定质量、分辨率与帧率、音轨、高级选项。
+- **默认保存文件夹**：设置一次，后续新素材自动使用该目录；可随时更改或恢复「跟随源文件」。选择会写入本机 `settings.json`，重启后仍然有效。
 - **动作 Dock**：预计体积、主操作「开始转换」、当前/最近任务和进度常驻在视线内。
 - **桌面细节**：`Ctrl+O` 添加、`Ctrl+Enter` 转换、空格播放/暂停、`Esc` 关闭浮层；系统保存对话框；输出文件在资源管理器中定位。
+
+![输出位置与默认文件夹](docs/screenshots/output-settings.png)
 
 ![转换完成](docs/screenshots/conversion.png)
 
@@ -72,6 +75,7 @@ E:\FrameFerry\FrameFerry.exe
 - Electron 44.7 主进程，渲染层是零运行时依赖的原生 HTML/CSS/JS（React 原型在实现中后期被移除，避免为界面引入构建链）；
 - 自绘 48px 标题栏与窗口控制，Windows 无边框窗口；
 - 原生 `dialog.showOpenDialog` / `showSaveDialog`，而不是浏览器文件选择框；
+- 默认输出文件夹通过主进程原生目录选择器设置，持久化到 `userData/settings.json`，不依赖页面刷新生命周期；
 - 自定义菜单、快捷键、拖放遮罩、转换记录、关于页；
 - 历史记录写入 `userData/history.json`，重启后仍可定位输出；
 - 主进程单实例锁：再次从资源管理器打开视频，会复用已有窗口。
@@ -120,6 +124,7 @@ npm start -- --open-file="E:\path\to\video.mp4"
 - 视频信息解析、海报帧、6 帧胶片条、应用内播放与拖动（`readyState=4`，无媒体错误）；
 - MP4（H.264 + AAC，AMD AMF 硬件编码）、WebM（VP9 + Opus）、GIF（调色板）三种真实转换；
 - 输出路径、同名避让、历史记录、完成态与 toast 提示；
+- 默认保存文件夹的设置加载、自动落到该目录、重启持久化；
 - 1440×900 截图下布局与主操作可见性。
 
 详细记录见 [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md)。

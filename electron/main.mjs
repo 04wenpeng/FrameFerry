@@ -36,6 +36,8 @@ let pendingOpenFiles = []
 let bootstrapCache = null
 let history = []
 let historyPath = ''
+let settingsPath = ''
+let preferences = { defaultOutputDir: '' }
 let thumbnailCacheDir = ''
 const probeCache = new Map()
 let conversionQueue = null
@@ -82,7 +84,7 @@ function queueOpenFiles(files) {
 async function loadHistory() {
   try {
     const raw = await readFile(historyPath, 'utf8')
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(raw.replace(/^\uFEFF/, ''))
     if (Array.isArray(parsed)) history = parsed.slice(0, 40)
   } catch {
     history = []
@@ -97,13 +99,34 @@ async function saveHistory() {
   }
 }
 
+async function loadPreferences() {
+  try {
+    const raw = await readFile(settingsPath, 'utf8')
+    const parsed = JSON.parse(raw.replace(/^\uFEFF/, ''))
+    preferences = {
+      defaultOutputDir: typeof parsed?.defaultOutputDir === 'string' ? parsed.defaultOutputDir : ''
+    }
+  } catch {
+    preferences = { defaultOutputDir: '' }
+  }
+}
+
+async function savePreferences() {
+  try {
+    await writeFile(settingsPath, JSON.stringify(preferences, null, 2), 'utf8')
+  } catch {
+    /* preferences are best-effort */
+  }
+}
+
 async function initializeServices() {
   await app.whenReady()
   Menu.setApplicationMenu(null)
   historyPath = path.join(app.getPath('userData'), 'history.json')
+  settingsPath = path.join(app.getPath('userData'), 'settings.json')
   thumbnailCacheDir = path.join(app.getPath('userData'), 'thumb-cache')
   await mkdir(thumbnailCacheDir, { recursive: true })
-  await loadHistory()
+  await Promise.all([loadHistory(), loadPreferences()])
   bootstrapCache = await readToolsInfo()
   conversionQueue = new ConversionQueue({
     hardware: bootstrapCache.hardware,
@@ -282,6 +305,7 @@ ipcMain.handle('app:bootstrap', async () => {
     platform: process.platform,
     ffmpeg: bootstrapCache,
     history,
+    settings: preferences,
     openFiles: files,
     maximized: mainWindow?.isMaximized() || false,
     paths: {
@@ -328,6 +352,28 @@ ipcMain.handle('dialog:choose-directory', async (_event, defaultPath) => {
   return result.canceled ? '' : result.filePaths[0]
 })
 
+ipcMain.handle('settings:choose-default-output', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '设置默认保存文件夹',
+    buttonLabel: '设为默认',
+    defaultPath: preferences.defaultOutputDir || app.getPath('videos'),
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (result.canceled || !result.filePaths[0]) return ''
+  const chosen = result.filePaths[0]
+  const info = await stat(chosen).catch(() => null)
+  if (!info?.isDirectory()) throw new Error('所选位置不是有效文件夹')
+  preferences.defaultOutputDir = chosen
+  await savePreferences()
+  return chosen
+})
+
+ipcMain.handle('settings:clear-default-output', async () => {
+  preferences.defaultOutputDir = ''
+  await savePreferences()
+  return true
+})
+
 ipcMain.handle('media:probe', async (_event, filePath) => {
   const cleaned = String(filePath || '')
   if (!cleaned || !isVideoFile(cleaned)) throw new Error('请选择受支持的视频文件')
@@ -352,7 +398,10 @@ ipcMain.handle('media:default-output', (_event, payload = {}) => {
   const sourcePath = String(payload.sourcePath || '')
   const format = String(payload.format || 'mp4')
   if (!sourcePath) return ''
-  return path.join(path.dirname(sourcePath), `${fileStem(sourcePath)}_converted.${format}`)
+  return path.join(
+    preferences.defaultOutputDir || path.dirname(sourcePath),
+    `${fileStem(sourcePath)}_converted.${format}`
+  )
 })
 
 ipcMain.handle('jobs:start', async (_event, payload) => {

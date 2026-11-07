@@ -28,6 +28,7 @@
 
 - `docs/screenshots/hero.png`
 - `docs/screenshots/conversion.png`
+- `docs/screenshots/output-settings.png`
 
 ## 3. 媒体探测与缩略图
 
@@ -78,7 +79,9 @@
 
 | 用例 | 结果 |
 | --- | --- |
-| 输出目录为源文件目录 | 通过 |
+| 默认保存文件夹 | 通过：启动时从 `userData/settings.json` 读取，输出路径自动落入该目录 |
+| 默认目录实际转换 | 通过：设置 `E:\FrameFerry\exports` 后，MP4 成功写入该目录（8,667,452 bytes） |
+| 输出目录为源文件目录（未设置默认目录） | 通过 |
 | 同名文件已存在 | 自动生成 ` (2)`，不覆盖 |
 | 中文/空格路径 | 文件对话框与 Node 参数均为数组传参，不经过 shell 拼接 |
 | 取消任务 | 运行中可发送取消并结束子进程 |

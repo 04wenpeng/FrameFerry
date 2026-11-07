@@ -2061,6 +2061,74 @@ input:focus-visible {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.default-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.default-folder-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.default-folder-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dim);
+  font-size: 8px;
+  margin-bottom: 3px;
+}
+
+.default-folder-label svg {
+  color: var(--muted);
+}
+
+.default-folder-path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 7.5px;
+}
+
+.default-folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.default-folder-set {
+  color: var(--accent);
+  font-size: 8.5px;
+  padding: 3px 4px;
+}
+
+.default-folder-clear {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--dim);
+}
+
+.default-folder-clear:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .estimate-row {
   display: flex;
   align-items: flex-end;

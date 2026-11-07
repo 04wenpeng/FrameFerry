@@ -103,12 +103,16 @@ function directoryOf(filePath) {
   return slash >= 0 ? String(filePath).slice(0, slash) : ''
 }
 
-function outputPathFor(sourcePath, format) {
-  const separator = sourcePath.includes('\\') ? '\\' : '/'
-  const slash = Math.max(sourcePath.lastIndexOf('/'), sourcePath.lastIndexOf('\\'))
-  const directory = slash >= 0 ? sourcePath.slice(0, slash) : '.'
+function outputPathFor(sourcePath, format, preferredDirectory = '') {
+  const directory = preferredDirectory || directoryOf(sourcePath) || '.'
+  const separator = directory.includes('\\') ? '\\' : '/'
+  const normalizedDirectory = directory.replace(/[\\/]+$/, '')
   const stem = fileNameOf(sourcePath).replace(/\.[^.]+$/, '')
-  return `${directory}${separator}${stem}_converted.${format}`
+  return `${normalizedDirectory}${separator}${stem}_converted.${format}`
+}
+
+function preferredOutputPath(sourcePath, format) {
+  return outputPathFor(sourcePath, format, state.defaultOutputDir)
 }
 
 const FORMAT_META = {
@@ -144,6 +148,7 @@ const state = {
   activeId: null,
   settings: { ...DEFAULT_SETTINGS },
   preset: 'balanced',
+  defaultOutputDir: '',
   outputPath: '',
   outputEdited: false,
   jobs: [],
@@ -554,6 +559,16 @@ function renderSettings() {
         <div class="output-copy"><span class="output-name" title="${escapeHtml(outputPath)}">${outputPath ? escapeHtml(fileNameOf(outputPath)) : '选择素材后自动生成'}</span><span class="output-dir" title="${escapeHtml(outputPath)}">${outputPath ? escapeHtml(directoryOf(outputPath)) : '与源文件相同的目录'}</span></div>
         <button class="output-folder" data-action="show-output" title="打开输出位置">${icon('folder', 14)}</button>
       </div>
+      <div class="default-folder">
+        <div class="default-folder-copy">
+          <span class="default-folder-label">${icon('folderSearch', 11)} 默认保存文件夹</span>
+          <span class="default-folder-path" title="${escapeHtml(state.defaultOutputDir || '跟随源文件所在目录')}">${state.defaultOutputDir ? escapeHtml(state.defaultOutputDir) : '跟随源文件所在目录'}</span>
+        </div>
+        <div class="default-folder-actions">
+          ${state.defaultOutputDir ? `<button class="default-folder-clear" data-action="clear-default-output" title="恢复跟随源文件">${icon('x', 11)}</button>` : ''}
+          <button class="text-button default-folder-set" data-action="choose-default-output">${state.defaultOutputDir ? '更改默认' : '设为默认'}</button>
+        </div>
+      </div>
     </div>`
 
   hydrateIcons(root)
@@ -677,7 +692,7 @@ async function addFiles(paths) {
   if (firstNew) {
     state.activeId = items[0].id
     state.outputEdited = false
-    state.outputPath = outputPathFor(items[0].path, state.settings.format)
+    state.outputPath = preferredOutputPath(items[0].path, state.settings.format)
   }
   renderSourceRail()
   if (firstNew) { renderPreview(); renderSettings() }
@@ -722,7 +737,7 @@ function selectFile(id) {
   if (!file) return
   state.activeId = id
   state.outputEdited = false
-  state.outputPath = outputPathFor(file.path, state.settings.format)
+  state.outputPath = preferredOutputPath(file.path, state.settings.format)
   renderSourceRail()
   renderPreview()
   renderSettings()
@@ -735,7 +750,7 @@ function removeFile(id) {
   if (wasActive) {
     const next = state.files[0] || null
     state.activeId = next?.id || null
-    state.outputPath = next && !state.outputEdited ? outputPathFor(next.path, state.settings.format) : ''
+    state.outputPath = next && !state.outputEdited ? preferredOutputPath(next.path, state.settings.format) : ''
     renderPreview()
     renderSettings()
   }
@@ -765,7 +780,7 @@ function updateSettings(patch, options = {}) {
   }
   const file = activeFile()
   if (file && !state.outputEdited && next.format !== previousFormat) {
-    state.outputPath = outputPathFor(file.path, next.format)
+    state.outputPath = preferredOutputPath(file.path, next.format)
   }
   state.settings = next
   if (!options.keepPreset) state.preset = 'custom'
@@ -785,7 +800,7 @@ function applyPreset(id) {
     audioCodec: 'aac',
     faststart: true
   }
-  if (file && !state.outputEdited) state.outputPath = outputPathFor(file.path, state.settings.format)
+  if (file && !state.outputEdited) state.outputPath = preferredOutputPath(file.path, state.settings.format)
   renderSettings()
 }
 
@@ -800,6 +815,35 @@ async function chooseOutput() {
     }
   } catch (error) {
     showToast('error', '无法选择输出路径', errorMessage(error))
+  }
+}
+
+async function chooseDefaultOutput() {
+  try {
+    const directory = await api.chooseDefaultOutput()
+    if (!directory) return
+    state.defaultOutputDir = directory
+    if (activeFile() && !state.outputEdited) {
+      state.outputPath = preferredOutputPath(activeFile().path, state.settings.format)
+    }
+    renderSettings()
+    showToast('success', '默认保存文件夹已更新', directory)
+  } catch (error) {
+    showToast('error', '无法设置默认文件夹', errorMessage(error))
+  }
+}
+
+async function clearDefaultOutput() {
+  try {
+    await api.clearDefaultOutput()
+    state.defaultOutputDir = ''
+    if (activeFile() && !state.outputEdited) {
+      state.outputPath = preferredOutputPath(activeFile().path, state.settings.format)
+    }
+    renderSettings()
+    showToast('info', '已恢复为跟随源文件目录')
+  } catch (error) {
+    showToast('error', '无法恢复默认位置', errorMessage(error))
   }
 }
 
@@ -971,7 +1015,7 @@ function bindEvents() {
     state.settings = { ...DEFAULT_SETTINGS }
     state.preset = 'balanced'
     state.outputEdited = false
-    if (activeFile()) state.outputPath = outputPathFor(activeFile().path, state.settings.format)
+    if (activeFile()) state.outputPath = preferredOutputPath(activeFile().path, state.settings.format)
     renderSettings()
   })
 
@@ -1042,6 +1086,8 @@ function bindEvents() {
     if (!action) return
     if (action === 'toggle-advanced') { state.advancedOpen = !state.advancedOpen; renderSettings(); return }
     if (action === 'choose-output') { void chooseOutput(); return }
+    if (action === 'choose-default-output') { void chooseDefaultOutput(); return }
+    if (action === 'clear-default-output') { void clearDefaultOutput(); return }
     if (action === 'start') { void startConversion(); return }
     if (action === 'show-output') {
       if (state.outputPath) void api.showItemInFolder(state.outputPath)
@@ -1184,6 +1230,7 @@ async function init() {
   try {
     state.bootstrap = await api.getBootstrap()
     state.history = state.bootstrap.history || []
+    state.defaultOutputDir = state.bootstrap.settings?.defaultOutputDir || ''
     state.maxed = Boolean(state.bootstrap.maximized)
     $('#maximize-icon').innerHTML = icon(state.maxed ? 'copy' : 'square', 12)
     state.jobs = await api.listJobs()

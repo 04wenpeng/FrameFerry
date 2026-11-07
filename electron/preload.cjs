@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('frameferry', {
   openMediaDialog: () => ipcRenderer.invoke('dialog:open-media'),
   chooseOutput: (options) => ipcRenderer.invoke('dialog:choose-output', options),
   chooseDirectory: (defaultPath) => ipcRenderer.invoke('dialog:choose-directory', defaultPath),
+  chooseDefaultOutput: () => ipcRenderer.invoke('settings:choose-default-output'),
+  clearDefaultOutput: () => ipcRenderer.invoke('settings:clear-default-output'),
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   probeMedia: (filePath) => ipcRenderer.invoke('media:probe', filePath),
