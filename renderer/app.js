@@ -832,7 +832,7 @@ function renderSettings() {
   const isProres = settings.videoCodec === 'prores'
   const engine = state.bootstrap?.ffmpeg
   const hardware = engine?.hardware
-  const qualityPercent = ((30 - settings.quality) / 14) * 100
+  const qualityPercent = Math.min(100, Math.max(0, ((settings.quality - 16) / 14) * 100))
   const resolutionLabel = settings.resolution === 'source'
     ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
     : `${settings.resolution}p`
@@ -1693,7 +1693,7 @@ function bindEvents() {
     const quality = Number(slider.value)
     state.settings.quality = quality
     state.preset = 'custom'
-    const percent = ((30 - quality) / 14) * 100
+    const percent = Math.min(100, Math.max(0, ((quality - 16) / 14) * 100))
     slider.style.background = `linear-gradient(90deg,var(--accent) 0%,var(--accent) ${percent}%,rgba(255,255,255,.16) ${percent}%)`
     $('#quality-value').textContent = `CRF ${quality}`
     const estimate = estimateSize(activeInfo(), state.settings, editPlan(activeFile()).duration)
