@@ -364,6 +364,7 @@ function renderPreview() {
           <button class="stage-control" id="control-play" aria-label="播放">${icon('play', 15)}</button>
           <span class="stage-time"><span id="time-current">00:00</span> <i>/</i> ${escapeHtml(info.durationLabel)}</span>
           <span class="stage-control-spacer"></span>
+          <button class="stage-edit-pill" id="stage-edit" title="剪辑片段">${icon('scissors', 13)}<span id="stage-edit-label">剪辑</span></button>
           <button class="stage-control" id="control-mute" aria-label="静音">${icon('volume', 15)}</button>
           <button class="stage-control" id="control-fullscreen" aria-label="全屏">${icon('maximize', 14)}</button>
         </div>
@@ -476,6 +477,7 @@ function renderPreview() {
   video.addEventListener('ended', () => { ui.playing = false; paintPlay() })
   central.addEventListener('click', togglePlay)
   controlPlay.addEventListener('click', togglePlay)
+  $('#stage-edit').addEventListener('click', () => $('#trim-toggle').click())
   timeline.addEventListener('input', (event) => seek(event.target.value))
   mute.addEventListener('click', () => {
     ui.muted = !ui.muted
@@ -502,6 +504,12 @@ function updateTrimToggle() {
   button.classList.toggle('is-active', state.trimMode && ready)
   const label = $('#trim-toggle-label')
   if (label) label.textContent = state.trimMode && ready ? '完成剪辑' : '剪辑'
+  const stageEdit = $('#stage-edit')
+  if (stageEdit) {
+    stageEdit.classList.toggle('is-active', state.trimMode && ready)
+    const stageLabel = $('#stage-edit-label')
+    if (stageLabel) stageLabel.textContent = state.trimMode ? '完成' : '剪辑'
+  }
 }
 
 function paintTrimPlayhead() {

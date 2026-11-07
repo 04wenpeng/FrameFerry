@@ -967,6 +967,8 @@ input:focus-visible {
 .stage-play svg {
   display: block;
   margin: 0;
+  /* 三角形的视觉重心偏左，向右做 2px 光学居中 */
+  transform: translateX(2px);
 }
 
 .stage-play::before {
@@ -1063,6 +1065,28 @@ input:focus-visible {
 
 .stage-control-spacer {
   flex: 1;
+}
+
+.stage-edit-pill {
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  background: rgba(10, 12, 15, 0.42);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 9.5px;
+  backdrop-filter: blur(8px);
+}
+
+.stage-edit-pill:hover,
+.stage-edit-pill.is-active {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 .filmstrip-shell {
@@ -3384,7 +3408,9 @@ input:focus-visible {
 /* ---------- Clip editor ---------- */
 
 .ghost-button.trim-toggle {
-  color: var(--text-soft);
+  color: var(--accent);
+  border-color: rgba(255, 96, 56, 0.24);
+  background: rgba(255, 96, 56, 0.055);
 }
 
 .ghost-button.trim-toggle:hover:not(:disabled),
