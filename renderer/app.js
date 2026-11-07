@@ -115,6 +115,12 @@ function preferredOutputPath(sourcePath, format) {
   return outputPathFor(sourcePath, format, state.defaultOutputDir)
 }
 
+function outputPathWithFormat(filePath, format) {
+  const value = String(filePath || '')
+  if (!value) return ''
+  return value.replace(/\.[a-z0-9]{2,5}$/i, '') + `.${format}`
+}
+
 const FORMAT_META = {
   mp4: { label: 'MP4', note: '通用分享' },
   mov: { label: 'MOV', note: '剪辑交付' },
@@ -513,41 +519,42 @@ function renderSettings() {
       <div class="mini-field">
         <div class="field-label"><span>分辨率</span></div>
         <div class="select-shell"><select data-select="resolution" ${isGif ? 'disabled' : ''}>
+          ${isGif ? '<option value="gif" selected>640px 宽 · 等比</option>' : `
           <option value="source" ${settings.resolution === 'source' ? 'selected' : ''}>保持原始</option>
           <option value="2160" ${settings.resolution === 2160 ? 'selected' : ''}>2160p · 4K</option>
           <option value="1440" ${settings.resolution === 1440 ? 'selected' : ''}>1440p · 2K</option>
           <option value="1080" ${settings.resolution === 1080 ? 'selected' : ''}>1080p · FHD</option>
           <option value="720" ${settings.resolution === 720 ? 'selected' : ''}>720p · HD</option>
-          <option value="480" ${settings.resolution === 480 ? 'selected' : ''}>480p · SD</option>
+          <option value="480" ${settings.resolution === 480 ? 'selected' : ''}>480p · SD</option>`}
         </select>${icon('chevronDown', 13)}</div>
       </div>
       <div class="mini-field">
         <div class="field-label"><span>帧率</span></div>
         <div class="select-shell"><select data-select="fps" ${isGif || isProres ? 'disabled' : ''}>
+          ${isGif ? '<option value="12.5" selected>12.5 fps · 固定</option>' : `
           <option value="source" ${settings.fps === 'source' ? 'selected' : ''}>保持原始</option>
           <option value="60" ${settings.fps === 60 ? 'selected' : ''}>60 fps</option>
           <option value="30" ${settings.fps === 30 ? 'selected' : ''}>30 fps</option>
-          <option value="24" ${settings.fps === 24 ? 'selected' : ''}>24 fps</option>
+          <option value="24" ${settings.fps === 24 ? 'selected' : ''}>24 fps</option>`}
         </select>${icon('chevronDown', 13)}</div>
       </div>
     </div>
 
     <div class="audio-block ${!settings.audio ? 'is-muted' : ''}">
       <div class="audio-head">
-        <div><div class="field-label"><span>音轨</span></div><span class="audio-sub">${isGif ? 'GIF 格式不支持音轨' : settings.audio ? (settings.audioCodec === 'opus' ? 'Opus · 网页优化' : 'AAC · 广泛兼容') : '已移除音轨'}</span></div>
+        <div><div class="field-label"><span>音轨</span></div><span class="audio-sub">${isGif ? 'GIF 格式不支持音轨' : !settings.audio ? '已移除音轨' : isProres ? 'PCM · 无损' : settings.audioCodec === 'opus' && settings.format === 'mkv' ? 'Opus · 可封装' : settings.audioCodec === 'opus' ? 'Opus · 网页优化' : 'AAC · 广泛兼容'}</span></div>
         <button class="switch ${settings.audio ? 'is-on' : ''}" role="switch" aria-checked="${settings.audio}" data-toggle="audio" ${isGif ? 'disabled' : ''}><span class="switch-thumb"></span></button>
       </div>
       ${isGif ? `<div class="audio-disabled-row">${icon('volumeX', 12)} 转换为 GIF 时将自动移除音频</div>` : settings.audio ? `<div class="audio-options">
-        <div class="select-shell slim"><select data-select="audioCodec" ${settings.format === 'webm' ? 'disabled' : ''}>
-          <option value="aac" ${settings.audioCodec === 'aac' ? 'selected' : ''}>AAC</option>
-          <option value="opus" ${settings.audioCodec === 'opus' ? 'selected' : ''}>Opus</option>
+        <div class="select-shell slim"><select data-select="audioCodec" ${settings.format === 'mkv' ? '' : 'disabled'}>
+          ${isProres ? '<option selected>PCM · 无损</option>' : settings.format === 'webm' ? '<option selected>Opus</option>' : settings.format === 'mkv' ? `<option value="aac" ${settings.audioCodec === 'aac' ? 'selected' : ''}>AAC</option><option value="opus" ${settings.audioCodec === 'opus' ? 'selected' : ''}>Opus</option>` : '<option selected>AAC</option>'}
         </select>${icon('chevronDown', 12)}</div>
-        <div class="select-shell slim"><select data-select="audioBitrate">
+        <div class="select-shell slim">${isProres ? '<select disabled><option selected>PCM 48 kHz</option></select>' : `<select data-select="audioBitrate">
           <option value="128" ${settings.audioBitrate === 128 ? 'selected' : ''}>128 kbps</option>
           <option value="192" ${settings.audioBitrate === 192 ? 'selected' : ''}>192 kbps</option>
           <option value="256" ${settings.audioBitrate === 256 ? 'selected' : ''}>256 kbps</option>
           <option value="320" ${settings.audioBitrate === 320 ? 'selected' : ''}>320 kbps</option>
-        </select>${icon('chevronDown', 12)}</div>
+        </select>`}${icon('chevronDown', 12)}</div>
       </div>` : `<div class="audio-disabled-row">${icon('volumeX', 12)} 输出将不包含音频轨道</div>`}
     </div>
 
@@ -620,7 +627,13 @@ function renderQueue() {
   if (!slot) return
   if (!state.jobs.length) { slot.innerHTML = ''; return }
   const finishedCount = state.jobs.filter((job) => ['done', 'failed', 'cancelled'].includes(job.status)).length
-  const jobs = state.jobs.slice(0, 2)
+  const activeJobs = state.jobs
+    .filter((job) => ['running', 'queued'].includes(job.status))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+  const finishedJobs = state.jobs
+    .filter((job) => !['running', 'queued'].includes(job.status))
+    .sort((a, b) => String(b.finishedAt || b.createdAt).localeCompare(String(a.finishedAt || a.createdAt)))
+  const jobs = [...activeJobs, ...finishedJobs].slice(0, 2)
   slot.innerHTML = `<div class="queue-block dock-queue-block">
     <div class="queue-head"><span><span class="queue-live-dot"></span>转换队列 <b>${state.jobs.length}</b></span>${finishedCount ? '<button class="text-button" data-action="clear-finished">清除已完成</button>' : ''}</div>
     <div class="queue-list">${jobs.map((job) => {
@@ -781,7 +794,7 @@ function updateSettings(patch, options = {}) {
   if (patch.format === 'webm') { next.audioCodec = 'opus'; next.faststart = false }
   if (patch.format === 'mp4' || patch.format === 'mov') {
     next.faststart = true
-    if (next.audioCodec !== 'opus') next.audioCodec = 'aac'
+    next.audioCodec = 'aac'
   }
   if (patch.videoCodec === 'prores') {
     next.format = 'mov'; next.audioCodec = 'aac'; next.faststart = true; next.audio = true
@@ -790,9 +803,13 @@ function updateSettings(patch, options = {}) {
   if (patch.format && patch.format !== 'gif' && next.videoCodec === 'gif') {
     next.videoCodec = FORMAT_CODECS[patch.format][0]; next.audio = true
   }
+  if (next.format === 'mp4' || next.format === 'mov') next.audioCodec = 'aac'
+  if (next.format === 'webm') next.audioCodec = 'opus'
   const file = activeFile()
-  if (file && !state.outputEdited && next.format !== previousFormat) {
-    state.outputPath = preferredOutputPath(file.path, next.format)
+  if (file && next.format !== previousFormat) {
+    state.outputPath = state.outputEdited && state.outputPath
+      ? outputPathWithFormat(state.outputPath, next.format)
+      : preferredOutputPath(file.path, next.format)
   }
   state.settings = next
   if (!options.keepPreset) state.preset = 'custom'
@@ -812,7 +829,11 @@ function applyPreset(id) {
     audioCodec: 'aac',
     faststart: true
   }
-  if (file && !state.outputEdited) state.outputPath = preferredOutputPath(file.path, state.settings.format)
+  if (file) {
+    state.outputPath = state.outputEdited && state.outputPath
+      ? outputPathWithFormat(state.outputPath, state.settings.format)
+      : preferredOutputPath(file.path, state.settings.format)
+  }
   renderSettings()
 }
 
@@ -820,7 +841,7 @@ async function chooseOutput() {
   try {
     const chosen = await api.chooseOutput({ format: state.settings.format, defaultPath: state.outputPath })
     if (chosen) {
-      state.outputPath = /\.[a-z0-9]{2,5}$/i.test(chosen) ? chosen : `${chosen}.${state.settings.format}`
+      state.outputPath = outputPathWithFormat(chosen, state.settings.format)
       state.outputEdited = true
       renderSettings()
       renderTitleMeta()

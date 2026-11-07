@@ -4,7 +4,7 @@
  *   node scripts/cdp.mjs eval "document.title"
  * 启动应用时附加 --remote-debugging-port=9333。
  */
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const port = Number(process.env.CDP_PORT || 9333)
@@ -44,9 +44,10 @@ await send('Page.enable')
 await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
 await new Promise((resolve) => setTimeout(resolve, waitMs))
 
-if (mode === 'eval') {
+if (mode === 'eval' || mode === 'eval-file') {
+  const expression = mode === 'eval-file' ? await readFile(argument, 'utf8') : argument
   const result = await send('Runtime.evaluate', {
-    expression: argument,
+    expression,
     awaitPromise: true,
     returnByValue: true,
     userGesture: true

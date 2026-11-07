@@ -126,9 +126,12 @@ npm start -- --open-file="E:\path\to\video.mp4"
 
 - 启动、无参启动、带文件参数启动；
 - 视频信息解析、海报帧、6 帧胶片条、应用内播放与拖动（`readyState=4`，无媒体错误）；
-- MP4（H.264 + AAC，AMD AMF 硬件编码）、WebM（VP9 + Opus）、GIF（调色板）三种真实转换；
+- MP4（H.264 + AAC，AMD AMF 硬件编码）、WebM（VP9 + Opus）、GIF（12.5fps / 80ms 固定帧间隔）、MOV ProRes 422 HQ + PCM 四种真实转换；
 - 输出路径、同名避让、历史记录、完成态与 toast 提示；
 - 默认保存文件夹的设置加载、自动落到该目录、重启持久化；
+- 并发入队时输出路径自动避让（`race-test.mp4` / `race-test (2).mp4`）；
+- 清除已完成任务不会复制运行中任务；关闭应用会终止正在运行的 FFmpeg；
+- 自定义输出文件在切换格式时同步更新扩展名，避免 UI 显示与实际文件不一致；
 - 1440×900 截图下布局与主操作可见性。
 
 详细记录见 [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md)。

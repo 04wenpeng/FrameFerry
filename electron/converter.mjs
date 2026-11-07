@@ -29,14 +29,16 @@ async function exists(filePath) {
   }
 }
 
-async function uniqueOutputPath(target) {
-  if (!(await exists(target))) return target
+async function uniqueOutputPath(target, reserved = new Set()) {
+  const available = async (candidate) =>
+    !reserved.has(candidate.toLowerCase()) && !(await exists(candidate))
+  if (await available(target)) return target
   const directory = path.dirname(target)
   const ext = path.extname(target)
   const stem = path.basename(target, ext)
   for (let index = 2; index < 1000; index += 1) {
     const candidate = path.join(directory, `${stem} (${index})${ext}`)
-    if (!(await exists(candidate))) return candidate
+    if (await available(candidate)) return candidate
   }
   return path.join(directory, `${stem}-${Date.now()}${ext}`)
 }
@@ -121,7 +123,7 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
     args.push('-an')
   } else {
     args.push(...qualityArgs(codec, settings.quality, Boolean(hardwareEncoder), hardwareEncoder))
-    args.push('-pix_fmt', 'yuv420p')
+    args.push('-pix_fmt', codec === 'prores' ? 'yuv422p10le' : 'yuv420p')
     if (settings.fps && Number(settings.fps) > 0 && format !== 'gif') {
       args.push('-r', String(settings.fps))
     }
@@ -134,7 +136,7 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
           ? 'libopus'
           : codec === 'prores'
             ? 'pcm_s16le'
-            : settings.audioCodec === 'opus'
+            : format === 'mkv' && settings.audioCodec === 'opus'
               ? 'libopus'
               : 'aac'
       args.push('-c:a', audioCodec)
@@ -186,6 +188,9 @@ export class ConversionQueue {
     this.jobs = []
     this.running = null
     this.lastEmit = 0
+    this.reservedPaths = new Set()
+    this.shuttingDown = false
+    this.enqueueChain = Promise.resolve()
   }
 
   setHardware(hardware) {
@@ -208,7 +213,15 @@ export class ConversionQueue {
     this.onChange(this.snapshot())
   }
 
-  async enqueue(input) {
+  enqueue(input) {
+    // 串行化入队，避免两个同名任务在文件尚未落盘时抢占同一个输出路径。
+    const operation = this.enqueueChain.then(() => this.enqueueJob(input))
+    this.enqueueChain = operation.catch(() => {})
+    return operation
+  }
+
+  async enqueueJob(input) {
+    if (this.shuttingDown) throw new Error('应用正在退出，无法开始新任务')
     const sourcePath = String(input?.sourcePath || '')
     if (!sourcePath) throw new Error('缺少源文件路径')
     await access(sourcePath)
@@ -233,7 +246,8 @@ export class ConversionQueue {
     if (path.resolve(outputPath).toLowerCase() === path.resolve(sourcePath).toLowerCase()) {
       outputPath = path.join(path.dirname(outputPath), `${fileStem(outputPath)}_converted.${format}`)
     }
-    outputPath = await uniqueOutputPath(outputPath)
+    outputPath = await uniqueOutputPath(outputPath, this.reservedPaths)
+    this.reservedPaths.add(outputPath.toLowerCase())
 
     const settings = {
       format,
@@ -286,8 +300,8 @@ export class ConversionQueue {
   }
 
   pump() {
-    if (this.running) return
-    const next = this.jobs.find((job) => job.status === 'queued')
+    if (this.running || this.shuttingDown) return
+    const next = [...this.jobs].reverse().find((job) => job.status === 'queued')
     if (!next) return
     this.run(next)
   }
@@ -382,6 +396,7 @@ export class ConversionQueue {
       job.finishedAt = new Date().toISOString()
       job.eta = ''
       job.note = '任务已取消'
+      this.reservedPaths.delete(job.outputPath.toLowerCase())
       this.running = null
       this.emit()
       this.pump()
@@ -413,6 +428,7 @@ export class ConversionQueue {
           .slice(-3)
           .join(' ') || outcome.error || `FFmpeg 退出码 ${outcome.code}`
       job.note = '转换失败'
+      this.reservedPaths.delete(job.outputPath.toLowerCase())
       this.running = null
       this.emit()
       this.onComplete(job, true)
@@ -431,6 +447,7 @@ export class ConversionQueue {
     job.finishedAt = new Date().toISOString()
     job.eta = ''
     job.note = job.usedHardware ? `${job.hardwareLabel} 硬件编码完成` : '转换完成'
+    this.reservedPaths.delete(job.outputPath.toLowerCase())
     this.running = null
     this.emit()
     this.onComplete(job, false)
@@ -444,6 +461,7 @@ export class ConversionQueue {
       job.status = 'cancelled'
       job.note = '任务已取消'
       job.finishedAt = new Date().toISOString()
+      this.reservedPaths.delete(job.outputPath.toLowerCase())
       this.emit()
       return true
     }
@@ -461,9 +479,23 @@ export class ConversionQueue {
   }
 
   clearFinished() {
-    const active = this.jobs.find((job) => job.status === 'running')
     this.jobs = this.jobs.filter((job) => !['done', 'failed', 'cancelled'].includes(job.status))
-    if (active) this.jobs.unshift(active)
+    this.emit()
+  }
+
+  shutdown() {
+    this.shuttingDown = true
+    for (const job of this.jobs) {
+      if (job.status === 'queued') {
+        job.status = 'cancelled'
+        job.note = '应用退出，任务已取消'
+        job.finishedAt = new Date().toISOString()
+      }
+      if (job.status === 'running' && job.child) {
+        job.cancelRequested = true
+        job.child.kill('SIGTERM')
+      }
+    }
     this.emit()
   }
 }

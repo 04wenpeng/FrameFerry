@@ -79,6 +79,14 @@
 - ffprobe：125 帧，每帧 `pkt_duration_time=0.080000`，时长约 10s
 - 修复前：15fps 在 GIF 的 10ms 延迟粒度下被拆成 70ms / 60ms 交替，肉眼表现为节奏跳变；改为 12.5fps 后所有帧固定 80ms
 
+### 5.4 MOV / ProRes 422 HQ
+
+- 设置：MOV、ProRes 422 HQ、480p、PCM 音频
+- 结果：成功
+- 输出：95,654,730 bytes
+- ffprobe：视频 `prores / yuv422p10le`，音频 `pcm_s16le`
+- 这一轮修复了此前所有非 GIF 编码统一被强制 `yuv420p` 的问题
+
 ## 6. 输出路径与任务行为
 
 | 用例 | 结果 |
@@ -90,6 +98,11 @@
 | 中文/空格路径 | 文件对话框与 Node 参数均为数组传参，不经过 shell 拼接 |
 | 取消任务 | 运行中可发送取消并结束子进程 |
 | 历史记录 | 成功后写入 `userData/history.json`，面板可定位输出 |
+| 并发同路径入队 | 两个任务分别输出 `race-test.mp4` 与 `race-test (2).mp4`，无覆盖 |
+| 清除已完成 | 无运行中任务时清空后 `listJobs()` 返回 `[]`；单元测试确认运行中任务只保留一次 |
+| 关闭应用 | WebM 转码中关闭窗口，3 秒后 `ffmpeg` 与 `FrameFerry` 进程均不存在 |
+| 自定义扩展名 | `custom.mkv` 切到 WebM 后 UI 路径变为 `custom.webm` |
+| 音频容器约束 | MP4 即使传入 Opus 也输出 AAC；MKV 可选 Opus；ProRes 输出 PCM |
 | 硬件失败回退 | 代码路径存在；当前机器 AMF 可用，未触发实际失败回退 |
 
 ## 7. 发现并修复的问题
@@ -102,11 +115,20 @@
 | Toast 遮挡主按钮 | 完成态截图 | 通知移至左下角 |
 | WebM 下仍显示「加速 AMD AMF」 | 转换中截图 | 非 H.264 显示 CPU 实际编码路径 |
 | 关闭硬件开关仍使用硬件 | 代码审查发现 `job.settings` 未被读取 | 队列读取 `job.settings.hardware` |
+| 清除已完成会复制运行中任务 | 代码审查：`clearFinished` 先过滤再 unshift 运行任务 | 直接过滤终态，不再重复插入 |
+| 队列 LIFO | 单元测试确认最早任务未被先启动 | `pump()` 反向查找最早的 queued |
+| 同路径并发入队 | 同输出路径可能同时分配给两个任务 | 队列串行化 + 路径占位，集成测试生成 `(2)` |
+| 退出后 ffmpeg 未结束 | 关闭窗口后进程仍存在 | `before-quit` 调用 `shutdown()` 并杀子进程 |
+| 自定义路径扩展名不跟随格式 | UI 显示与实际扩展名不一致 | 统一 `outputPathWithFormat()` |
+| MP4/MOV 可选 Opus | 兼容性差且 ProRes 音频 UI 与实际不符 | 按容器锁定音频编码，ProRes 显示 PCM |
+| ProRes pix_fmt 错误 | 强制 yuv420p，与 422 HQ 不符 | 改为 yuv422p10le，ffprobe 验证 |
+| 进度广播旧快照回退 | 高频进度下 UI 可能回退 | leading + trailing 节流 |
+| 探测缓存不随文件变化 | 替换同路径文件后信息过期 | key 加入 size + mtime |
 
 ## 8. 未覆盖
 
 - 真实鼠标拖放（DevTools 合成的 File 无法携带宿主文件路径）——代码走 Electron 官方 `webUtils.getPathForFile` 路径；建议验收时手动拖入一次。
-- H.265 / ProRes / MOV 的真实转码（参数路径已实现，未在本次机器上逐项跑完）。
+- H.265 与 H.264 MOV 的真实转码尚未逐项跑完（ProRes MOV 已验证）。
 - 多显示器、高 DPI 200%、Windows 10。
 - 代码签名与 SmartScreen 正式发布流程。
 - 多音频轨/字幕轨选择。

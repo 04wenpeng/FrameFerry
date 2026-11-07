@@ -41,7 +41,8 @@ let preferences = { defaultOutputDir: '' }
 let thumbnailCacheDir = ''
 const probeCache = new Map()
 let conversionQueue = null
-let lastProgressBroadcast = 0
+let jobsBroadcastTimer = null
+let pendingJobsSnapshot = null
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -66,6 +67,28 @@ function collectFileArguments(argv) {
     if (isVideoFile(cleaned)) result.push(cleaned)
   }
   return [...new Set(result)]
+}
+
+function sendJobsSnapshot(jobs) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('jobs:update', jobs)
+  }
+}
+
+function broadcastJobs(jobs) {
+  pendingJobsSnapshot = jobs
+  if (jobsBroadcastTimer) return
+  // 先发送最新快照，再给高频进度事件留一个尾帧，避免旧计时器把进度“回退”。
+  sendJobsSnapshot(pendingJobsSnapshot)
+  pendingJobsSnapshot = null
+  jobsBroadcastTimer = setTimeout(() => {
+    jobsBroadcastTimer = null
+    if (pendingJobsSnapshot) {
+      const latest = pendingJobsSnapshot
+      pendingJobsSnapshot = null
+      sendJobsSnapshot(latest)
+    }
+  }, 100)
 }
 
 function queueOpenFiles(files) {
@@ -130,22 +153,7 @@ async function initializeServices() {
   bootstrapCache = await readToolsInfo()
   conversionQueue = new ConversionQueue({
     hardware: bootstrapCache.hardware,
-    onChange: (jobs) => {
-      const now = Date.now()
-      if (now - lastProgressBroadcast < 100) {
-        clearTimeout(conversionQueue?._broadcastTimer)
-        conversionQueue._broadcastTimer = setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('jobs:update', jobs)
-          }
-        }, 100)
-        return
-      }
-      lastProgressBroadcast = now
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('jobs:update', jobs)
-      }
-    },
+    onChange: (jobs) => broadcastJobs(jobs),
     onComplete: async (job, failed) => {
       if (failed) return
       history.unshift({
@@ -288,6 +296,10 @@ app.on('second-instance', (_event, argv) => {
   }
 })
 
+app.on('before-quit', () => {
+  conversionQueue?.shutdown()
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
@@ -377,8 +389,9 @@ ipcMain.handle('settings:clear-default-output', async () => {
 ipcMain.handle('media:probe', async (_event, filePath) => {
   const cleaned = String(filePath || '')
   if (!cleaned || !isVideoFile(cleaned)) throw new Error('请选择受支持的视频文件')
-  await access(cleaned)
-  const key = cleaned.toLowerCase()
+  const fileInfo = await stat(cleaned)
+  if (!fileInfo.isFile()) throw new Error('请选择有效的视频文件')
+  const key = `${cleaned.toLowerCase()}|${fileInfo.size}|${fileInfo.mtimeMs}`
   if (probeCache.has(key)) return probeCache.get(key)
   const result = await probeMedia(cleaned, { cacheDir: thumbnailCacheDir })
   probeCache.set(key, result)
