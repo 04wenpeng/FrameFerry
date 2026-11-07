@@ -3679,3 +3679,130 @@ input:focus-visible {
     font-size: 12px;
   }
 }
+
+/* ---------- Middle cut ---------- */
+
+.trim-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.trim-toolbar {
+  flex-wrap: wrap;
+  row-gap: 5px;
+}
+
+.text-button.trim-cut-toggle {
+  color: var(--red);
+}
+
+.text-button.trim-cut-toggle:hover,
+.text-button.trim-cut-toggle.is-active {
+  color: #ff9a8e;
+}
+
+.trim-cut-selection {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  border-top: 2px solid var(--red);
+  border-bottom: 2px solid var(--red);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(241, 106, 90, 0.22) 0,
+      rgba(241, 106, 90, 0.22) 6px,
+      rgba(241, 106, 90, 0.09) 6px,
+      rgba(241, 106, 90, 0.09) 12px
+    );
+  pointer-events: none;
+}
+
+.trim-cut-selection span {
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(20, 10, 9, 0.62);
+  color: #ffb1a8;
+  font-size: 8px;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.trim-cut-handle {
+  z-index: 6;
+}
+
+.trim-cut-handle::before {
+  background: var(--red);
+  box-shadow: 0 0 0 1px rgba(20, 12, 8, 0.45), 0 0 9px rgba(241, 106, 90, 0.35);
+}
+
+.trim-cut-handle span {
+  background: var(--red);
+}
+
+.trim-cut-readout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(241, 106, 90, 0.2);
+  border-radius: 5px;
+  background: rgba(241, 106, 90, 0.055);
+}
+
+.trim-cut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+  color: #ff9a8e;
+  font-size: 9.5px;
+  font-weight: 560;
+}
+
+.trim-cut-readout strong {
+  color: #ffc0b7;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.trim-cut-arrow {
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.trim-cut-total {
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.trim-cut-total b {
+  color: #ffb1a8;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.trim-current.is-cut {
+  color: #ffb1a8;
+}
+
+@media (max-width: 1180px) {
+  .trim-cut-readout {
+    gap: 5px;
+  }
+
+  .trim-cut-total {
+    margin-left: 0;
+  }
+}
