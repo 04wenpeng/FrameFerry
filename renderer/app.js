@@ -6,7 +6,7 @@ const ICONS = {
   folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
-  play: '<polygon points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none"/>',
+  play: '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>',
   volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
   volumeX: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',
@@ -357,7 +357,7 @@ function renderPreview() {
         </div>
         <span class="stage-filename" title="${escapeHtml(info.name)}">${escapeHtml(info.name)}</span>
       </div>
-      <button class="stage-play" id="stage-play" aria-label="播放预览">${icon('play', 24)}<span class="play-ring"></span></button>
+      <button class="stage-play" id="stage-play" aria-label="播放预览">${icon('play', 24)}</button>
       <div class="stage-controls">
         <div class="timeline-wrap"><input class="timeline" id="timeline" type="range" min="0" max="${Math.max(info.duration, 0.1)}" step="0.01" value="0"></div>
         <div class="stage-control-row">

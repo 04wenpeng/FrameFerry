@@ -115,6 +115,7 @@
 | 自定义扩展名 | `custom.mkv` 切到 WebM 后 UI 路径变为 `custom.webm` |
 | 片段剪辑 | 2.0s–6.0s 输出 4.000s，进度/预计体积按片段计算 |
 | 片段预览 | 播放到出点 6.0s 自动暂停 |
+| 播放图标居中 | CDP 几何测量：按钮中心与三角 bbox 中心 `dx=0`、`dy=0` |
 | 音频容器约束 | MP4 即使传入 Opus 也输出 AAC；MKV 可选 Opus；ProRes 输出 PCM |
 | 硬件失败回退 | 代码路径存在；当前机器 AMF 可用，未触发实际失败回退 |
 
@@ -137,6 +138,7 @@
 | ProRes pix_fmt 错误 | 强制 yuv420p，与 422 HQ 不符 | 改为 yuv422p10le，ffprobe 验证 |
 | 进度广播旧快照回退 | 高频进度下 UI 可能回退 | leading + trailing 节流 |
 | 探测缓存不随文件变化 | 替换同路径文件后信息过期 | key 加入 size + mtime |
+| 播放三角不在圆内中心 | 空 `play-ring` span 参与 grid 布局，把图标顶高约 9.7px | 移除空节点并修正三角路径；CDP 测量 dx=0、dy=0 |
 
 ## 8. 未覆盖
 
