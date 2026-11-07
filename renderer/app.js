@@ -489,7 +489,7 @@ function renderSettings() {
     ${!isProres && !isGif ? `
     <div class="settings-group quality-group">
       <div class="quality-head">
-        <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低 · 画质越高</span></div>
+        <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低越清晰</span></div>
         <span class="quality-value" id="quality-value">CRF ${settings.quality}</span>
       </div>
       <input class="quality-slider" id="quality-slider" type="range" min="16" max="30" step="1" value="${settings.quality}"

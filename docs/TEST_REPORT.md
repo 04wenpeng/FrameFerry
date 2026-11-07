@@ -23,6 +23,7 @@
 | 单实例 | 重复启动 | 复用已有窗口（主进程单实例锁） |
 | 布局 | 1440×900 | 无横向溢出；主按钮 Dock 常驻可见 |
 | 无 renderer error | DevTools Protocol 收集 `Runtime.exceptionThrown` / `console.error` | 0 条 |
+| 可读性 | 1440×900 视觉检查 | 设置面板控件 12–13px、辅助信息 ≥10px、次要文字对比度提升；无关键操作被挤出首屏 |
 
 截图：
 

@@ -8,9 +8,9 @@
   --line: rgba(255, 255, 255, 0.075);
   --line-strong: rgba(255, 255, 255, 0.13);
   --text: #eeece6;
-  --text-soft: #c8c5bd;
-  --muted: #8b8e97;
-  --dim: #62666f;
+  --text-soft: #d3d0c8;
+  --muted: #a1a5ae;
+  --dim: #7c818b;
   --accent: #ff6038;
   --accent-soft: rgba(255, 96, 56, 0.12);
   --accent-line: rgba(255, 96, 56, 0.38);
@@ -3015,4 +3015,337 @@ input:focus-visible {
     padding-left: 12px;
     padding-right: 12px;
   }
+}
+
+/* ---------- Readability ---------- */
+/* 中文界面优先保证可读性：控件 12–13px，辅助信息不低于 10px。 */
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+
+.brand-en {
+  font-size: 9px;
+}
+
+.menu-trigger,
+.menu-item {
+  font-size: 13px;
+}
+
+.menu-shortcut {
+  font-size: 10.5px;
+}
+
+.menu-status {
+  font-size: 11.5px;
+}
+
+.titlebar-center {
+  font-size: 11.5px;
+}
+
+.import-card strong {
+  font-size: 13px;
+}
+
+.import-card small {
+  font-size: 11.5px;
+}
+
+.count-pill {
+  font-size: 10.5px;
+}
+
+.rail-section-head {
+  font-size: 10px;
+}
+
+.rail-section-head span:last-child {
+  font-size: 10.5px;
+}
+
+.source-name {
+  font-size: 13px;
+}
+
+.source-meta {
+  font-size: 10px;
+}
+
+.thumb-duration {
+  font-size: 9px;
+}
+
+.rail-empty p {
+  font-size: 13px;
+}
+
+.rail-empty span {
+  font-size: 11.5px;
+}
+
+.rail-footer span {
+  font-size: 11px;
+}
+
+.rail-footer small {
+  font-size: 9.5px;
+}
+
+.engine-chip,
+.ghost-button {
+  font-size: 11px;
+}
+
+.stage-badges span,
+.stage-filename,
+.stage-time {
+  font-size: 10px;
+}
+
+.filmstrip-label span:first-child {
+  font-size: 11px;
+}
+
+.filmstrip-label span:last-child {
+  font-size: 9.5px;
+}
+
+.filmstrip-index {
+  font-size: 8.5px;
+}
+
+.fact-label {
+  font-size: 11px;
+}
+
+.fact-meta {
+  font-size: 10px;
+}
+
+.format-pill,
+.asset-path,
+.track-state,
+.empty-hint {
+  font-size: 9.5px;
+}
+
+.text-button {
+  font-size: 11.5px;
+}
+
+.group-head {
+  font-size: 12.5px;
+}
+
+.group-index {
+  font-size: 9.5px;
+}
+
+.group-hint {
+  font-size: 10.5px;
+}
+
+.preset-card {
+  height: 84px;
+}
+
+.preset-name {
+  font-size: 13px;
+}
+
+.preset-sub {
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.format-chip {
+  height: 46px;
+}
+
+.format-chip span {
+  font-size: 11.5px;
+}
+
+.format-chip small {
+  font-size: 9px;
+}
+
+.field-label {
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.quality-head .field-label {
+  gap: 7px;
+}
+
+.field-hint {
+  font-size: 10px;
+}
+
+.select-shell {
+  height: 35px;
+}
+
+.select-shell select {
+  font-size: 12.5px;
+}
+
+.select-shell.slim {
+  height: 30px;
+}
+
+.select-shell.slim select {
+  font-size: 11px;
+}
+
+.static-field {
+  font-size: 11.5px;
+}
+
+.quality-value {
+  font-size: 12px;
+}
+
+.quality-scale {
+  font-size: 10.5px;
+}
+
+.quality-note {
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.audio-sub {
+  font-size: 11px;
+}
+
+.advanced-toggle {
+  font-size: 12px;
+}
+
+.toggle-row strong {
+  font-size: 12px;
+}
+
+.toggle-row small {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.advanced-meta {
+  font-size: 10.5px;
+}
+
+.output-name {
+  font-size: 11.5px;
+}
+
+.output-dir {
+  font-size: 10px;
+}
+
+.default-folder-label {
+  font-size: 10.5px;
+}
+
+.default-folder-path {
+  font-size: 10.5px;
+}
+
+.default-folder-set {
+  font-size: 11px;
+}
+
+.estimate-label {
+  font-size: 10.5px;
+}
+
+.estimate-spec {
+  font-size: 10px;
+}
+
+.convert-button {
+  font-size: 13px;
+}
+
+.convert-note {
+  font-size: 10px;
+}
+
+.queue-head > span {
+  font-size: 11px;
+}
+
+.queue-name {
+  font-size: 10.5px;
+}
+
+.queue-meta {
+  font-size: 9.5px;
+}
+
+.dock-queue-block .queue-head > span {
+  font-size: 10px;
+}
+
+.dock-queue-block .queue-name {
+  font-size: 10.5px;
+}
+
+.dock-queue-block .queue-meta {
+  font-size: 9.5px;
+}
+
+.statusbar {
+  font-size: 9.5px;
+}
+
+.toast-copy strong {
+  font-size: 12px;
+}
+
+.toast-copy span {
+  font-size: 10.5px;
+}
+
+.history-main strong,
+.history-meta strong {
+  font-size: 11.5px;
+}
+
+.history-main span,
+.history-meta span {
+  font-size: 10px;
+}
+
+.history-format {
+  font-size: 9.5px;
+}
+
+.modal-footnote,
+.modal-note {
+  font-size: 10px;
+}
+
+.about-hero p {
+  font-size: 11.5px;
+}
+
+.about-grid span {
+  font-size: 10px;
+}
+
+.about-grid strong {
+  font-size: 10.5px;
+}
+
+.about-note {
+  font-size: 10.5px;
+}
+
+.about-stack span {
+  font-size: 9px;
 }
