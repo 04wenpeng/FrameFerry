@@ -1632,13 +1632,10 @@ function bindEvents() {
       const time = timeAt(pointerEvent)
       if (which === 'start') {
         clip.start = Math.max(prevEnd, Math.min(time, clip.end - 0.2))
-        if (video) video.currentTime = clip.start
-        ui.currentTime = clip.start
       } else {
         clip.end = Math.min(nextStart, Math.max(time, clip.start + 0.2))
-        if (video) video.currentTime = clip.end
-        ui.currentTime = clip.end
       }
+      // 裁剪时只移动片段边界，播放头/分割线保持原位，不跟着手柄跑。
       refresh()
     }
     const up = () => {
