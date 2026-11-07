@@ -42,6 +42,9 @@ E:\FrameFerry\FrameFerry.exe
 - **动作 Dock**：预计体积、主操作「开始转换」、当前/最近任务和进度常驻在视线内。
 - **桌面细节**：`Ctrl+O` 添加、`Ctrl+Enter` 转换、空格播放/暂停、`Esc` 关闭浮层；系统保存对话框；输出文件在资源管理器中定位。
 - **可读性**：中文控件字号 11–13px，辅助信息不低于 10px；深色界面的次要文字提高亮度，优先保证「看得清」而不是一味塞信息。
+- **GIF 稳定输出**：固定 12.5fps / 80ms 帧间隔（避免 15fps 被拆成 70/60ms 的节奏跳变），256 色全局调色板 + 稳定抖动。
+
+![GIF 设置](docs/screenshots/gif-settings.png)
 
 ![输出位置与默认文件夹](docs/screenshots/output-settings.png)
 

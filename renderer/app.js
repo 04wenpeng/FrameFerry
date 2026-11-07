@@ -190,7 +190,10 @@ function activeInfo() {
 
 function estimateSize(info, settings) {
   if (!info) return 0
-  if (settings.format === 'gif') return Math.max(0.6, info.duration * 0.18) * 1024 * 1024
+  if (settings.format === 'gif') {
+    // 640px 宽、12.5fps、256 色的 GIF 体积与画面复杂度强相关，取实际样本的经验均值。
+    return Math.max(0.8, info.duration * 1.1) * 1024 * 1024
+  }
   if (settings.videoCodec === 'prores') return info.duration * 62 * 1024 * 1024 / 8
   const sourceShort = Math.min(info.video.width, info.video.height) || 1080
   const target = settings.resolution === 'source' ? sourceShort : Math.min(Number(settings.resolution), sourceShort)
@@ -432,7 +435,6 @@ function renderSettings() {
   const settings = state.settings
   const isGif = settings.format === 'gif'
   const isProres = settings.videoCodec === 'prores'
-  const audioVisible = !isGif
   const engine = state.bootstrap?.ffmpeg
   const hardware = engine?.hardware
   const qualityPercent = ((30 - settings.quality) / 14) * 100
@@ -486,7 +488,16 @@ function renderSettings() {
       </div>
     </div>
 
-    ${!isProres && !isGif ? `
+    ${isGif ? `
+    <div class="settings-group quality-group gif-quality">
+      <div class="quality-head">
+        <div class="field-label"><span>GIF 调色板</span><span class="field-hint">固定 12.5 fps</span></div>
+        <span class="quality-value">256 色</span>
+      </div>
+      <div class="gif-tone" aria-hidden="true"><span></span></div>
+      <div class="quality-scale"><span>稳定帧间隔</span><span>控制体积</span></div>
+      <div class="quality-note">${icon('sparkles', 12)}统一使用 80ms 帧间隔与稳定抖动，避免 GIF 播放时的节奏跳变。</div>
+    </div>` : !isProres ? `
     <div class="settings-group quality-group">
       <div class="quality-head">
         <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低越清晰</span></div>
@@ -496,7 +507,7 @@ function renderSettings() {
         style="background:linear-gradient(90deg,var(--accent) 0%,var(--accent) ${qualityPercent}%,rgba(255,255,255,.16) ${qualityPercent}%)">
       <div class="quality-scale"><span>更佳画质</span><span>更小体积</span></div>
       <div class="quality-note" id="quality-note">${icon('sparkles', 12)}${settings.quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : settings.quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'}</div>
-    </div>` : `<div class="quality-note prores-note">${icon('sparkles', 12)}${isProres ? 'ProRes 422 HQ 固定高质量中间编码，面向剪辑软件' : 'GIF 自动使用调色板优化，不包含音轨'}</div>`}
+    </div>` : `<div class="quality-note prores-note">${icon('sparkles', 12)}ProRes 422 HQ 固定高质量中间编码，面向剪辑软件</div>`}
 
     <div class="settings-row compact">
       <div class="mini-field">
@@ -521,13 +532,12 @@ function renderSettings() {
       </div>
     </div>
 
-    ${audioVisible ? `
     <div class="audio-block ${!settings.audio ? 'is-muted' : ''}">
       <div class="audio-head">
-        <div><div class="field-label"><span>音轨</span></div><span class="audio-sub">${settings.audio ? (settings.audioCodec === 'opus' ? 'Opus · 网页优化' : 'AAC · 广泛兼容') : '已移除音轨'}</span></div>
-        <button class="switch ${settings.audio ? 'is-on' : ''}" role="switch" aria-checked="${settings.audio}" data-toggle="audio"><span class="switch-thumb"></span></button>
+        <div><div class="field-label"><span>音轨</span></div><span class="audio-sub">${isGif ? 'GIF 格式不支持音轨' : settings.audio ? (settings.audioCodec === 'opus' ? 'Opus · 网页优化' : 'AAC · 广泛兼容') : '已移除音轨'}</span></div>
+        <button class="switch ${settings.audio ? 'is-on' : ''}" role="switch" aria-checked="${settings.audio}" data-toggle="audio" ${isGif ? 'disabled' : ''}><span class="switch-thumb"></span></button>
       </div>
-      ${settings.audio ? `<div class="audio-options">
+      ${isGif ? `<div class="audio-disabled-row">${icon('volumeX', 12)} 转换为 GIF 时将自动移除音频</div>` : settings.audio ? `<div class="audio-options">
         <div class="select-shell slim"><select data-select="audioCodec" ${settings.format === 'webm' ? 'disabled' : ''}>
           <option value="aac" ${settings.audioCodec === 'aac' ? 'selected' : ''}>AAC</option>
           <option value="opus" ${settings.audioCodec === 'opus' ? 'selected' : ''}>Opus</option>
@@ -538,8 +548,8 @@ function renderSettings() {
           <option value="256" ${settings.audioBitrate === 256 ? 'selected' : ''}>256 kbps</option>
           <option value="320" ${settings.audioBitrate === 320 ? 'selected' : ''}>320 kbps</option>
         </select>${icon('chevronDown', 12)}</div>
-      </div>` : ''}
-    </div>` : ''}
+      </div>` : `<div class="audio-disabled-row">${icon('volumeX', 12)} 输出将不包含音频轨道</div>`}
+    </div>
 
     <div class="advanced-block">
       <button class="advanced-toggle" data-action="toggle-advanced"><span>${icon('settings', 13)} 高级选项</span>${icon('chevronDown', 14, state.advancedOpen ? 'is-rotated' : '')}</button>
@@ -583,9 +593,11 @@ function renderDock() {
   const ready = file?.status === 'ready' && Boolean(info)
   const settings = state.settings
   const isGif = settings.format === 'gif'
-  const resolutionLabel = settings.resolution === 'source'
-    ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
-    : `${settings.resolution}p`
+  const resolutionLabel = isGif
+    ? '640px 宽 · 12.5 fps'
+    : settings.resolution === 'source'
+      ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
+      : `${settings.resolution}p`
   const estimate = estimateSize(info, settings)
   dock.innerHTML = `
     <div id="dock-queue"></div>

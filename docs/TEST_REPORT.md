@@ -24,12 +24,14 @@
 | 布局 | 1440×900 | 无横向溢出；主按钮 Dock 常驻可见 |
 | 无 renderer error | DevTools Protocol 收集 `Runtime.exceptionThrown` / `console.error` | 0 条 |
 | 可读性 | 1440×900 视觉检查 | 设置面板控件 12–13px、辅助信息 ≥10px、次要文字对比度提升；无关键操作被挤出首屏 |
+| GIF 切换稳定 | 对比 MP4 / GIF 设置面板高度 | MP4 753px → GIF 770px（+17px），质量区和音轨区均保留占位，不再整块消失 |
 
 截图：
 
 - `docs/screenshots/hero.png`
 - `docs/screenshots/conversion.png`
 - `docs/screenshots/output-settings.png`
+- `docs/screenshots/gif-settings.png`
 
 ## 3. 媒体探测与缩略图
 
@@ -71,10 +73,11 @@
 
 ### 5.3 GIF
 
-- 设置：GIF（自动 640 宽、15fps、调色板、无音轨）
+- 设置：GIF（自动 640 宽、12.5fps、256 色全局调色板、稳定抖动、无音轨）
 - 结果：成功
-- 输出：11,149,218 bytes
-- ffprobe：GIF 640×360 15fps，时长 9.99s
+- 输出：11,920,324 bytes（约 11.4 MB）
+- ffprobe：125 帧，每帧 `pkt_duration_time=0.080000`，时长约 10s
+- 修复前：15fps 在 GIF 的 10ms 延迟粒度下被拆成 70ms / 60ms 交替，肉眼表现为节奏跳变；改为 12.5fps 后所有帧固定 80ms
 
 ## 6. 输出路径与任务行为
 

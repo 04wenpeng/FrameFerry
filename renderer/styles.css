@@ -1796,6 +1796,22 @@ input:focus-visible {
   cursor: pointer;
 }
 
+.gif-tone {
+  height: 3px;
+  margin: 10px 0 7px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.gif-tone span {
+  display: block;
+  width: 72%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), rgba(255, 148, 92, 0.5));
+}
+
 .quality-slider::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
@@ -1845,7 +1861,21 @@ input:focus-visible {
 }
 
 .audio-block.is-muted {
-  opacity: 0.7;
+  opacity: 0.84;
+}
+
+.audio-disabled-row {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 0 9px;
+  border: 1px dashed var(--line);
+  border-radius: 5px;
+  color: var(--dim);
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.012);
 }
 
 .audio-head {

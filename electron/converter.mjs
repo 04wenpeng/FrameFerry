@@ -71,7 +71,8 @@ function qualityArgs(codec, quality, useHardware, hardwareEncoder) {
 
 function buildVideoFilter(settings, meta = {}) {
   if (settings.format === 'gif') {
-    return 'fps=15,scale=640:-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=sierra2_4a'
+    // GIF 的帧延迟单位是 10ms。12.5fps → 每帧固定 80ms，避免 15fps 被拆成 70/60ms 造成节奏抖动。
+    return 'fps=12.5,scale=640:-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=full[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4'
   }
 
   const filters = []
