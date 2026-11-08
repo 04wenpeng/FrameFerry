@@ -4652,3 +4652,37 @@ input:focus-visible {
 .clip-timeline .trim-playhead {
   top: -27px;
 }
+
+/* ---------- Clip edit history ---------- */
+
+.trim-history {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.74);
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
+}
+
+.trim-history:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.trim-history:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.trim-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--line);
+  flex: none;
+}

@@ -19,6 +19,8 @@ const ICONS = {
   zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   hardDrive: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 16h.01M10 16h.01M2 12h20"/>',
   rotate: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  undo: '<path d="m9 7-5 5 5 5"/><path d="M4 12h9a6 6 0 0 1 6 6v1"/>',
+  redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12h-9a6 6 0 0 0-6 6v1"/>',
   sparkles: '<path d="m12 3-1.5 4.5L6 9l4.5 1.5L12 15l1.5-4.5L18 9l-4.5-1.5z"/><path d="m19 14-.8 2.2L16 17l2.2.8L19 20l.8-2.2L22 17l-2.2-.8z"/>',
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
@@ -731,6 +733,67 @@ function paintTrimPlayhead() {
   if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
 }
 
+function ensureClipHistory(file) {
+  if (!file) return { undo: [], redo: [] }
+  if (!file.clipHistory || !Array.isArray(file.clipHistory.undo) || !Array.isArray(file.clipHistory.redo)) {
+    file.clipHistory = { undo: [], redo: [] }
+  }
+  return file.clipHistory
+}
+
+function clipStateSnapshot(file) {
+  const clips = Array.isArray(file.clips) && file.clips.length ? file.clips : ensureClips(file)
+  return {
+    clips: clips.map((clip) => ({ id: clip.id, start: clip.start, end: clip.end })),
+    selectedClipId: file.selectedClipId
+  }
+}
+
+function pushClipHistory(file) {
+  const history = ensureClipHistory(file)
+  history.undo.push(clipStateSnapshot(file))
+  if (history.undo.length > 60) history.undo.shift()
+  history.redo = []
+}
+
+function restoreClipState(file, state) {
+  file.clips = state.clips.map((clip) => ({ ...clip }))
+  file.selectedClipId = state.selectedClipId
+  const selected = ensureClips(file).find((clip) => clip.id === file.selectedClipId)
+  const video = $('#preview-video')
+  if (selected && video) {
+    video.pause()
+    try { video.currentTime = selected.start } catch {}
+    ui.currentTime = selected.start
+  }
+  renderTrimUI()
+  renderDock()
+  renderSourceRail()
+  paintTrimPlayhead()
+}
+
+function undoClip() {
+  const file = activeFile()
+  if (!file) return
+  const history = ensureClipHistory(file)
+  if (!history.undo.length) return
+  const current = clipStateSnapshot(file)
+  const state = history.undo.pop()
+  history.redo.push(current)
+  restoreClipState(file, state)
+}
+
+function redoClip() {
+  const file = activeFile()
+  if (!file) return
+  const history = ensureClipHistory(file)
+  if (!history.redo.length) return
+  const current = clipStateSnapshot(file)
+  const state = history.redo.pop()
+  history.undo.push(current)
+  restoreClipState(file, state)
+}
+
 function timelineRulerHtml(duration) {
   if (!(duration > 0)) return ''
   const target = duration / 6
@@ -767,6 +830,7 @@ function renderTrimUI() {
     return
   }
   const clips = ensureClips(file)
+  const history = ensureClipHistory(file)
   const duration = Number(info.duration) || 0
   const selectedIndex = Math.max(0, clips.findIndex((clip) => clip.id === file.selectedClipId))
   const selected = clips[selectedIndex] || clips[0]
@@ -816,6 +880,9 @@ function renderTrimUI() {
         <span class="trim-head-hint">拖动白线定位，Ctrl+B 或双击白线分割；选中片段可拖两端或删除</span>
       </div>
       <div class="trim-toolbar">
+        <button class="trim-history" data-clip-action="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" ${history.undo.length ? '' : 'disabled'}>${icon('undo', 15)}</button>
+        <button class="trim-history" data-clip-action="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" ${history.redo.length ? '' : 'disabled'}>${icon('redo', 15)}</button>
+        <span class="trim-toolbar-sep" aria-hidden="true"></span>
         <button class="text-button" data-clip-action="preview">${icon('play', 11)} 预览成片</button>
         <button class="text-button clip-split" data-clip-action="split">${icon('scissors', 11)} 分割</button>
         <button class="text-button clip-delete" data-clip-action="delete" ${clips.length <= 1 ? 'disabled' : ''}>${icon('trash', 11)} 删除片段</button>
@@ -930,6 +997,9 @@ function handleClipAction(action) {
     renderSourceRail()
   }
 
+  if (action === 'undo') { undoClip(); return }
+  if (action === 'redo') { redoClip(); return }
+
   if (action === 'preview') {
     if (!video) return
     video.pause()
@@ -949,6 +1019,7 @@ function handleClipAction(action) {
     }
     const source = clips[index]
     const right = { id: makeClipId(), start: time, end: source.end }
+    pushClipHistory(file)
     source.end = time
     clips.splice(index + 1, 0, right)
     file.selectedClipId = right.id
@@ -966,6 +1037,7 @@ function handleClipAction(action) {
     }
     const index = clips.findIndex((clip) => clip.id === file.selectedClipId)
     if (index < 0) return
+    pushClipHistory(file)
     clips.splice(index, 1)
     const next = clips[Math.min(index, clips.length - 1)]
     file.selectedClipId = next.id
@@ -977,6 +1049,7 @@ function handleClipAction(action) {
   }
 
   if (action === 'reset') {
+    pushClipHistory(file)
     file.clips = [{ id: makeClipId(), start: 0, end: Number(file.info.duration) || 0 }]
     file.selectedClipId = file.clips[0].id
     if (video) { video.pause(); video.currentTime = 0 }
@@ -1593,7 +1666,8 @@ function historyModalHtml() {
 function shortcutsModalHtml() {
   const rows = [
     ['添加视频', ['Ctrl', 'O']], ['开始转换', ['Ctrl', 'Enter']], ['播放 / 暂停预览', ['Space']],
-    ['在播放头处分割片段', ['Ctrl', 'B']], ['拖动白线定位', ['鼠标拖动']], ['双击白线分割', ['双击']],
+    ['在播放头处分割片段', ['Ctrl', 'B']], ['撤销剪辑操作', ['Ctrl', 'Z']], ['重做剪辑操作', ['Ctrl', 'Shift', 'Z']],
+    ['拖动白线定位', ['鼠标拖动']], ['双击白线分割', ['双击']],
     ['关闭菜单或弹窗', ['Esc']], ['最小化窗口', ['Alt', 'Space']]
   ]
   return `<div class="modal-backdrop"><div class="modal" style="width:520px" role="dialog" aria-modal="true">
@@ -1797,6 +1871,7 @@ function bindEvents() {
       tip.textContent = formatTrimTime(clip.end - clip.start)
       tip.style.left = `${tipPosition()}%`
     }
+    let historyPushed = false
     const refresh = () => {
       const left = duration ? (clip.start / duration) * 100 : 0
       block.style.left = `${left}%`
@@ -1817,6 +1892,10 @@ function bindEvents() {
     }
     const move = (pointerEvent) => {
       const time = timeAt(pointerEvent)
+      if (!historyPushed) {
+        pushClipHistory(file)
+        historyPushed = true
+      }
       if (which === 'start') {
         clip.start = Math.max(prevEnd, Math.min(time, clip.end - 0.2))
       } else {
@@ -1969,6 +2048,21 @@ function bindEvents() {
     }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault(); if (!state.modal) void startConversion(); return
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      if (state.modal) return
+      if (event.target?.closest?.('input, select, textarea, [contenteditable="true"]')) return
+      event.preventDefault()
+      if (event.shiftKey) redoClip()
+      else undoClip()
+      return
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      if (state.modal) return
+      if (event.target?.closest?.('input, select, textarea, [contenteditable="true"]')) return
+      event.preventDefault()
+      redoClip()
+      return
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
       if (state.modal) return
