@@ -4588,3 +4588,67 @@ input:focus-visible {
   top: -12px;
   bottom: -12px;
 }
+
+/* ---------- Timeline time ruler ---------- */
+
+.clip-ruler {
+  position: relative;
+  height: 24px;
+  margin: 0 9px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--mono);
+  font-size: 10px;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.clip-ruler::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.clip-ruler-label {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.clip-ruler-label.is-first {
+  transform: none;
+}
+
+.clip-ruler-label.is-last {
+  transform: translateX(-100%);
+}
+
+.clip-ruler-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.clip-ruler-tick.is-major {
+  height: 9px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.clip-timeline {
+  margin: 3px 0 13px;
+}
+
+.clip-timeline .trim-playhead {
+  top: -27px;
+}

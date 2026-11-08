@@ -731,6 +731,32 @@ function paintTrimPlayhead() {
   if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
 }
 
+function timelineRulerHtml(duration) {
+  if (!(duration > 0)) return ''
+  const target = duration / 6
+  const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
+  const major = steps.find((step) => step >= target) || Math.ceil(target / 600) * 600
+  const minor = major / 4
+  const ticks = []
+  const labels = []
+  const count = Math.ceil(duration / minor)
+  for (let index = 0; index <= count; index += 1) {
+    const time = index * minor
+    if (time > duration + 0.001) break
+    const left = Math.min(100, (time / duration) * 100)
+    const isMajor = index % 4 === 0
+    ticks.push(`<span class="clip-ruler-tick ${isMajor ? 'is-major' : ''}" style="left:${left}%"></span>`)
+    if (isMajor) {
+      labels.push(`<span class="clip-ruler-label ${time < 0.01 ? 'is-first' : ''}" style="left:${left}%">${formatClock(time)}</span>`)
+    }
+  }
+  const lastTick = count * minor
+  if (duration - lastTick > minor * 0.2) {
+    labels.push(`<span class="clip-ruler-label is-last" style="left:100%">${formatClock(duration)}</span>`)
+  }
+  return `<div class="clip-ruler" aria-hidden="true">${labels.join('')}${ticks.join('')}</div>`
+}
+
 function renderTrimUI() {
   const slot = $('#trim-slot')
   if (!slot) return
@@ -780,6 +806,7 @@ function renderTrimUI() {
       return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
     })
     .join('')
+  const rulerHtml = timelineRulerHtml(duration)
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
@@ -795,6 +822,7 @@ function renderTrimUI() {
         <button class="text-button" data-clip-action="reset">${icon('rotate', 11)} 重置</button>
       </div>
     </div>
+    ${rulerHtml}
     <div class="clip-timeline" id="clip-timeline">
       <div class="clip-stage" id="clip-stage">
         ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
@@ -840,6 +868,14 @@ function renderTrimUI() {
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
     return ratio * duration
   }
+  $('.clip-ruler')?.addEventListener('pointerdown', (event) => {
+    if (!video) return
+    video.pause()
+    const time = timeAt(event)
+    video.currentTime = time
+    ui.currentTime = time
+    paintTrimPlayhead()
+  })
   const updateLive = (clip) => {
     const block = slot.querySelector(`[data-clip-id="${clip.id}"]`)
     if (block) {
