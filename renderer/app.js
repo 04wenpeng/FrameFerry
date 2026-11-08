@@ -784,7 +784,7 @@ function clipView(file) {
 }
 
 function nearestClipTime(file, time) {
-  const clips = ensureClips(file)
+  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : ensureClips(file)
   if (!clips.length) return 0
   const target = Number(time) || 0
   const inside = clips.find((clip) => target >= clip.start - 0.001 && target <= clip.end + 0.001)
@@ -2046,7 +2046,18 @@ function bindEvents() {
       window.addEventListener('pointerup', up)
       return
     }
-    const handle = event.target.closest('.clip-handle')
+    let handle = event.target.closest('.clip-handle')
+    if (!handle) {
+      const block = event.target.closest('.clip-block.is-selected')
+      if (block) {
+        const rect = block.getBoundingClientRect()
+        const fromLeft = event.clientX - rect.left
+        const fromRight = rect.right - event.clientX
+        if (Math.min(fromLeft, fromRight) <= 24) {
+          handle = block.querySelector(fromLeft <= fromRight ? '.clip-handle-start' : '.clip-handle-end')
+        }
+      }
+    }
     if (!handle) return
     const file = activeFile()
     const block = handle.closest('.clip-block')

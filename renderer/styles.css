@@ -4732,6 +4732,10 @@ input:focus-visible {
 }
 
 /* Keep the full handle hit area inside the clip, even at the timeline edges. */
+.clip-handle {
+  width: 24px;
+}
+
 .clip-handle-start {
   left: 0;
 }
