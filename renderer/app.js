@@ -259,7 +259,8 @@ const ui = {
     open: false,
     loading: false,
     token: 0,
-    timer: null
+    timer: null,
+    length: 10
   }
 }
 
@@ -425,7 +426,7 @@ async function generateQualityPreview() {
   const token = ++preview.token
   const duration = Number(info.duration) || 0
   if (duration <= 0) return
-  const length = Math.min(3, duration)
+  const length = Math.min(preview.length || 10, duration)
   const start = Math.min(Math.max(0, ui.currentTime || 0), Math.max(0, duration - length))
   const meta = qualityPreviewLabel()
   preview.loading = true
@@ -433,7 +434,7 @@ async function generateQualityPreview() {
   if (loading) loading.hidden = false
   if (errorBox) errorBox.hidden = true
   const metaLabel = $('#quality-preview-meta')
-  if (metaLabel) metaLabel.textContent = `${meta} · ${length.toFixed(1)}s · 无声`
+  if (metaLabel) metaLabel.textContent = `${meta} · 无声`
   const loadingText = $('#quality-preview-loading-text')
   if (loadingText) loadingText.textContent = `正在按 CRF ${state.settings.quality} 编码 ${length.toFixed(1)} 秒…`
 
@@ -482,6 +483,8 @@ function openQualityPreview() {
   $('#preview-video')?.pause()
   ui.qualityPreview.open = true
   overlay.hidden = false
+  const lengthSelect = $('#quality-preview-length')
+  if (lengthSelect) lengthSelect.value = String(ui.qualityPreview.length)
   void generateQualityPreview()
 }
 
@@ -554,6 +557,12 @@ function renderPreview() {
             <strong>真实压缩预览</strong>
           </div>
           <span class="quality-preview-meta" id="quality-preview-meta"></span>
+          <select class="qp-length" id="quality-preview-length" aria-label="预览时长">
+            <option value="3">3 秒</option>
+            <option value="5">5 秒</option>
+            <option value="10" selected>10 秒</option>
+            <option value="20">20 秒</option>
+          </select>
           <div class="quality-preview-actions">
             <button class="qp-button" data-quality-preview-action="refresh">${icon('rotate', 12)} 重新生成</button>
             <button class="qp-button is-close" data-quality-preview-action="close">${icon('x', 12)} 返回原片</button>
@@ -1693,6 +1702,14 @@ function bindEvents() {
       const file = activeFile()
       if (file) void api.showItemInFolder(file.path)
     }
+  })
+
+  $('#preview-body').addEventListener('change', (event) => {
+    if (event.target.id !== 'quality-preview-length' || !ui.qualityPreview.open) return
+    const length = Number(event.target.value)
+    if (!Number.isFinite(length)) return
+    ui.qualityPreview.length = Math.max(3, Math.min(20, length))
+    void generateQualityPreview()
   })
 
   $('#preview-body').addEventListener('click', (event) => {

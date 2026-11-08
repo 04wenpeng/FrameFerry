@@ -2,7 +2,7 @@ import {
   app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell
 } from 'electron'
 import { createReadStream } from 'node:fs'
-import { access, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
@@ -245,6 +245,23 @@ function registerProtocol() {
   })
 }
 
+async function cleanupQualityPreviewFiles(keepPath) {
+  try {
+    const names = await readdir(qualityPreviewDir)
+    const cutoff = Date.now() - 2 * 60 * 1000
+    for (const name of names) {
+      const target = path.join(qualityPreviewDir, name)
+      if (target === keepPath) continue
+      const info = await stat(target).catch(() => null)
+      if (info?.isFile() && info.mtimeMs < cutoff) {
+        await rm(target, { force: true }).catch(() => {})
+      }
+    }
+  } catch {
+    /* cache cleanup is best-effort */
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -421,7 +438,7 @@ ipcMain.handle('preview:quality', async (_event, payload = {}) => {
   if (!sourceInfo?.isFile()) throw new Error('源文件不可用')
   const sourceDuration = Math.max(0, Number(payload.duration) || 0)
   if (!sourceDuration) throw new Error('无法确定视频时长')
-  const sampleDuration = Math.min(3, Math.max(0.6, Number(payload.length) || 3), sourceDuration)
+  const sampleDuration = Math.min(20, Math.max(1, Number(payload.length) || 10), sourceDuration)
   const start = Math.min(
     Math.max(0, Number(payload.start) || 0),
     Math.max(0, sourceDuration - sampleDuration)
@@ -476,6 +493,7 @@ ipcMain.handle('preview:quality', async (_event, payload = {}) => {
         }
       })
     })
+    void cleanupQualityPreviewFiles(outputPath)
     return { path: outputPath, duration: sampleDuration, start }
   } catch (error) {
     await rm(outputPath, { force: true }).catch(() => {})
