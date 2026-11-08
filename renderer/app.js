@@ -747,7 +747,11 @@ function paintTrimPlayhead() {
 
 function clipView(file) {
   const duration = Number(file?.info?.duration) || 0
-  return { start: 0, end: duration, duration }
+  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : []
+  const lastEnd = clips.length ? clips[clips.length - 1].end : duration
+  const tail = Math.max(1, lastEnd * 0.1)
+  const end = Math.max(duration, lastEnd + tail)
+  return { start: 0, end, duration: Math.max(0.001, end) }
 }
 
 function nearestClipTime(file, time) {
