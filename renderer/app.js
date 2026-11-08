@@ -479,12 +479,15 @@ async function generateQualityPreview() {
   const length = Math.min(preview.length || 10, duration)
   const start = Math.min(Math.max(0, ui.currentTime || 0), Math.max(0, duration - length))
   const meta = qualityPreviewLabel()
+  const includeAudio = Boolean(info.audio && state.settings.audio)
   preview.loading = true
   video.pause()
   if (loading) loading.hidden = false
   if (errorBox) errorBox.hidden = true
   const metaLabel = $('#quality-preview-meta')
-  if (metaLabel) metaLabel.textContent = `${meta} · 无声`
+  if (metaLabel) metaLabel.textContent = `${meta} · ${includeAudio ? '含音轨' : '无声'}`
+  const audioNote = $('#quality-preview-audio-note')
+  if (audioNote) audioNote.textContent = includeAudio ? '预览包含音轨，可同时对比声音' : '预览无声，只看画质'
   const loadingText = $('#quality-preview-loading-text')
   if (loadingText) loadingText.textContent = `正在按 CRF ${state.settings.quality} 编码 ${length.toFixed(1)} 秒…`
 
@@ -497,9 +500,14 @@ async function generateQualityPreview() {
       quality: state.settings.quality,
       resolution: state.settings.resolution,
       fps: state.settings.fps,
-      hardware: state.settings.hardware
+      hardware: state.settings.hardware,
+      audio: includeAudio,
+      hasAudio: Boolean(info.audio),
+      audioCodec: state.settings.audioCodec,
+      audioBitrate: state.settings.audioBitrate
     })
     if (!preview.open || token !== preview.token) return
+    if (metaLabel) metaLabel.textContent = `${meta} · ${result.hasAudio ? '含音轨' : '无声'}`
     const url = await api.getMediaUrl(result.path)
     if (!preview.open || token !== preview.token) return
     video.src = url
@@ -619,7 +627,7 @@ function renderPreview() {
           <div class="quality-preview-loading" id="quality-preview-loading">
             <span class="qp-spinner"></span>
             <strong id="quality-preview-loading-text">正在按当前设置编码 3 秒…</strong>
-            <span>预览无声，只看画质</span>
+            <span id="quality-preview-audio-note">预览跟随音轨开关</span>
           </div>
           <div class="quality-preview-error" id="quality-preview-error" hidden></div>
         </div>
@@ -1699,7 +1707,7 @@ function updateSettings(patch, options = {}) {
   if (ui.qualityPreview.open) {
     if (next.format === 'gif' || next.videoCodec === 'prores') {
       closeQualityPreview()
-    } else if (Object.keys(patch).some((key) => ['format', 'videoCodec', 'resolution', 'fps', 'hardware'].includes(key))) {
+    } else if (Object.keys(patch).some((key) => ['format', 'videoCodec', 'resolution', 'fps', 'hardware', 'audio', 'audioCodec', 'audioBitrate'].includes(key))) {
       scheduleQualityPreview(350)
     }
   }

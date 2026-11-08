@@ -449,20 +449,23 @@ ipcMain.handle('preview:quality', async (_event, payload = {}) => {
     qualityPreviewDir,
     `preview-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`
   )
+  const includeAudio = payload.audio !== false && Boolean(payload.hasAudio)
   const settings = {
     format: 'mp4',
     videoCodec: 'h264',
     quality,
     resolution: payload.resolution || 'source',
     fps: payload.fps || 'source',
-    audio: false,
+    audio: includeAudio,
+    audioCodec: payload.audioCodec || 'aac',
+    audioBitrate: Number(payload.audioBitrate) || 192,
     faststart: true,
     hardware: useHardware,
     clips: [{ start, end: start + sampleDuration }]
   }
   const meta = {
     duration: sourceDuration,
-    hasAudio: false,
+    hasAudio: includeAudio,
     hardware: bootstrapCache?.hardware || null
   }
   const args = buildArguments({
@@ -494,7 +497,7 @@ ipcMain.handle('preview:quality', async (_event, payload = {}) => {
       })
     })
     void cleanupQualityPreviewFiles(outputPath)
-    return { path: outputPath, duration: sampleDuration, start }
+    return { path: outputPath, duration: sampleDuration, start, hasAudio: includeAudio }
   } catch (error) {
     await rm(outputPath, { force: true }).catch(() => {})
     throw error
