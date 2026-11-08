@@ -555,7 +555,7 @@ function previewSkeletonHtml() {
 async function setCoverFromCurrentFrame() {
   const file = activeFile()
   if (!file?.info) return
-  const button = $('#set-cover')
+  const button = $('[data-clip-action="cover"]')
   const video = $('#preview-video')
   if (!button || button.disabled) return
   const duration = Number(file.info.duration) || 0
@@ -603,7 +603,6 @@ function renderPreview() {
   $('#preview-engine-text').textContent = '预览就绪'
   $('#preview-engine-chip').classList.remove('is-live')
   $('#system-player').disabled = !file
-  $('#set-cover').disabled = !file
 
   if (!file) {
     body.innerHTML = emptyPreviewHtml()
@@ -1174,6 +1173,7 @@ function renderTrimUI() {
         <button class="trim-history" data-clip-action="redo" title="重做 (Ctrl+Shift+Z)" aria-label="重做" ${history.redo.length ? '' : 'disabled'}>${icon('redo', 15)}</button>
         <span class="trim-toolbar-sep" aria-hidden="true"></span>
         <button class="text-button" data-clip-action="preview">${icon('play', 11)} 预览成片</button>
+        <button class="text-button clip-cover" data-clip-action="cover" title="把当前画面设为素材封面">${icon('image', 11)} 设为封面</button>
         <button class="text-button clip-split" data-clip-action="split">${icon('scissors', 11)} 分割</button>
         <button class="text-button clip-delete" data-clip-action="delete" ${clips.length <= 1 ? 'disabled' : ''}>${icon('trash', 11)} 删除片段</button>
         <button class="text-button" data-clip-action="reset">${icon('rotate', 11)} 重置</button>
@@ -1297,6 +1297,7 @@ function handleClipAction(action) {
 
   if (action === 'undo') { undoClip(); return }
   if (action === 'redo') { redoClip(); return }
+  if (action === 'cover') { void setCoverFromCurrentFrame(); return }
 
   if (action === 'preview') {
     if (!video) return
@@ -2011,7 +2012,6 @@ function bindEvents() {
     const file = activeFile()
     if (file) void api.openPath(file.path)
   })
-  $('#set-cover').addEventListener('click', () => void setCoverFromCurrentFrame())
 
   $('#preview-body').addEventListener('wheel', (event) => {
     const file = activeFile()
