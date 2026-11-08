@@ -796,14 +796,16 @@ function renderTrimUI() {
       </div>
     </div>
     <div class="clip-timeline" id="clip-timeline">
-      ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
-      ${gapBlocks}
-      ${blocks}
-      ${cutLines}
-      <div class="trim-playhead" id="trim-playhead">
-        <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
+      <div class="clip-stage" id="clip-stage">
+        ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
+        ${gapBlocks}
+        ${blocks}
+        ${cutLines}
+        <div class="trim-playhead" id="trim-playhead">
+          <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
+        </div>
+        <span class="clip-trim-tip" id="clip-trim-tip" hidden></span>
       </div>
-      <span class="clip-trim-tip" id="clip-trim-tip" hidden></span>
     </div>
     <div class="clip-readout">
       <div class="clip-selected-line">
@@ -819,6 +821,7 @@ function renderTrimUI() {
   paintTrimPlayhead()
 
   const timeline = $('#clip-timeline')
+  const stage = $('#clip-stage')
   const video = $('#preview-video')
   const commit = () => {
     renderDock()
@@ -833,7 +836,7 @@ function renderTrimUI() {
     paintTrimPlayhead()
   }
   const timeAt = (event) => {
-    const rect = timeline.getBoundingClientRect()
+    const rect = stage.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
     return ratio * duration
   }
@@ -1685,7 +1688,7 @@ function bindEvents() {
         const file = activeFile()
         const video = $('#preview-video')
         if (file?.info && video) {
-          const rect = timelineElement.getBoundingClientRect()
+          const rect = ($('#clip-stage') || timelineElement).getBoundingClientRect()
           const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
           const time = ratio * (Number(file.info.duration) || 0)
           video.pause()
@@ -1702,7 +1705,7 @@ function bindEvents() {
     const grip = event.target.closest('.playhead-grip')
     if (grip) {
       const file = activeFile()
-      const timeline = $('#clip-timeline')
+      const timeline = $('#clip-stage')
       const video = $('#preview-video')
       if (!file?.info || !timeline) return
       const duration = Number(file.info.duration) || 0
@@ -1731,7 +1734,7 @@ function bindEvents() {
     if (!handle) return
     const file = activeFile()
     const block = handle.closest('.clip-block')
-    const timeline = $('#clip-timeline')
+    const timeline = $('#clip-stage')
     const video = $('#preview-video')
     if (!file?.info || !block || !timeline) return
     const clips = ensureClips(file)

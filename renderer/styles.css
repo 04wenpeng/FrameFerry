@@ -4537,3 +4537,42 @@ input:focus-visible {
   right: 3px;
   transform: translateY(-50%);
 }
+
+/* Handles straddle the clip edge instead of sitting inside it. */
+
+.clip-stage {
+  position: absolute;
+  inset: 0 8px;
+}
+
+.clip-block.is-selected {
+  overflow: visible;
+}
+
+.clip-handle {
+  width: 16px;
+}
+
+.clip-handle-start {
+  left: -8px;
+  transform: none;
+}
+
+.clip-handle-end {
+  right: -8px;
+  transform: none;
+}
+
+.clip-handle-start::before,
+.clip-handle-end::before {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}
+
+.clip-handle-start::after,
+.clip-handle-end::after {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}
