@@ -832,7 +832,8 @@ function renderSettings() {
   const isProres = settings.videoCodec === 'prores'
   const engine = state.bootstrap?.ffmpeg
   const hardware = engine?.hardware
-  const qualityPercent = Math.min(100, Math.max(0, ((settings.quality - 16) / 14) * 100))
+  const qualitySliderValue = Math.min(30, Math.max(16, 46 - settings.quality))
+  const qualityPercent = Math.min(100, Math.max(0, ((qualitySliderValue - 16) / 14) * 100))
   const resolutionLabel = settings.resolution === 'source'
     ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
     : `${settings.resolution}p`
@@ -898,9 +899,10 @@ function renderSettings() {
         <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低越清晰</span></div>
         <span class="quality-value" id="quality-value">CRF ${settings.quality}</span>
       </div>
-      <input class="quality-slider" id="quality-slider" type="range" min="16" max="30" step="1" value="${settings.quality}"
+      <input class="quality-slider" id="quality-slider" type="range" min="16" max="30" step="1" value="${qualitySliderValue}"
+        aria-label="视频质量：向右更好画质，向左更小体积"
         style="background:linear-gradient(90deg,var(--accent) 0%,var(--accent) ${qualityPercent}%,rgba(255,255,255,.16) ${qualityPercent}%)">
-      <div class="quality-scale"><span>更佳画质</span><span>更小体积</span></div>
+      <div class="quality-scale"><span>更小体积</span><span>更佳画质</span></div>
       <div class="quality-note" id="quality-note">${icon('sparkles', 12)}${settings.quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : settings.quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'}</div>
     </div>` : `<div class="quality-note prores-note">${icon('sparkles', 12)}ProRes 422 HQ 固定高质量中间编码，面向剪辑软件</div>`}
 
@@ -1690,10 +1692,11 @@ function bindEvents() {
   $('#settings-root').addEventListener('input', (event) => {
     const slider = event.target.closest('#quality-slider')
     if (!slider) return
-    const quality = Number(slider.value)
+    const sliderValue = Number(slider.value)
+    const quality = 46 - sliderValue
     state.settings.quality = quality
     state.preset = 'custom'
-    const percent = Math.min(100, Math.max(0, ((quality - 16) / 14) * 100))
+    const percent = Math.min(100, Math.max(0, ((sliderValue - 16) / 14) * 100))
     slider.style.background = `linear-gradient(90deg,var(--accent) 0%,var(--accent) ${percent}%,rgba(255,255,255,.16) ${percent}%)`
     $('#quality-value').textContent = `CRF ${quality}`
     const estimate = estimateSize(activeInfo(), state.settings, editPlan(activeFile()).duration)
