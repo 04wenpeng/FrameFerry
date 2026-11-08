@@ -6,15 +6,29 @@
 
 ![帧渡主界面](docs/screenshots/hero.png)
 
-## 立即体验
+**GitHub 仓库：** https://github.com/04wenpeng/FrameFerry
 
-当前机器上的便携版已经放在：
+## 运行
 
-```text
-E:\FrameFerry\FrameFerry.exe
+### 从源码运行
+
+仓库不包含 Electron 运行时和 FFmpeg 二进制，以控制仓库体积。
+
+1. 安装 Node.js 20+ 和 pnpm
+2. 下载 Windows 版 FFmpeg/FFprobe（推荐 [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 或 [BtbN builds](https://github.com/BtbN/FFmpeg-Builds/releases)）
+3. 把 `ffmpeg.exe`、`ffprobe.exe` 放到 `vendor/bin/`
+4. 执行：
+
+```bash
+pnpm install
+pnpm start
 ```
 
-也可以双击 `E:\FrameFerry\帧渡 FrameFerry.lnk` 或 `启动帧渡.cmd`。首次打开建议把 `E:\FrameFerry\samples\Afterglow.mp4` 拖进窗口，然后点击右下角「开始转换」。
+首次打开后，把 `samples/Afterglow.mp4` 拖进窗口，点击右下角「开始转换」即可。
+
+### 安装版
+
+本地构建的 Windows 安装程序会把完整程序安装到独立目录，包含 `FrameFerry.exe`、`resources`、DLL、`uninst.exe` 和桌面/开始菜单快捷方式。安装版不放进 Git 仓库，避免超过 GitHub 单文件限制。
 
 > 这是未签名的本地预览版。Windows SmartScreen 若拦截，请选择「更多信息 → 仍要运行」。应用不需要管理员权限，也不会联网。
 
@@ -27,7 +41,7 @@ E:\FrameFerry\FrameFerry.exe
 | 使用 ffmpeg 命令行转换 | Node `child_process.spawn` 直接调用 `ffmpeg.exe`，不接入任何 FFmpeg API/SDK；`-progress pipe:1` 实时解析进度 |
 | 自己做一些优化 | 硬件编码探测与自动回退、串行任务队列、互不覆盖的输出命名、编码器/容器联动、体积预估、帧服务 Range 预览、首帧快启 |
 | 生成会话总结 MD | [`会话总结.md`](会话总结.md)：开发过程、决策、反馈、取舍与测试记录 |
-| 提交 GitHub | 本地 Git 仓库已就绪；按当前要求**先不推送**，待确认后上传 |
+| 提交 GitHub | 已提交：[04wenpeng/FrameFerry](https://github.com/04wenpeng/FrameFerry) |
 | 界面与「客户端」有关联 | 无边框桌面窗口、窗口控制、菜单栏、系统文件对话框、拖放、快捷键、底部任务 Dock；没有网页导航或落地页 |
 | 设计目标是给人用 | 提供示例素材、完成态/失败态、取消、打开输出位置、转换记录、键盘操作，并完成端到端转换验证 |
 
