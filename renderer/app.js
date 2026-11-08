@@ -752,11 +752,9 @@ function paintTrimPlayhead() {
 function timelineExtent(file) {
   const sourceDuration = Number(file?.info?.duration) || 0
   const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : []
-  const lastEnd = clips.length ? clips[clips.length - 1].end : sourceDuration
-  const tail = Math.max(1, lastEnd * 0.1)
   return {
     sourceDuration,
-    baseDuration: Math.max(0.001, sourceDuration, lastEnd + tail),
+    baseDuration: Math.max(0.001, sourceDuration),
     clipStart: clips.length ? clips[0].start : 0
   }
 }
