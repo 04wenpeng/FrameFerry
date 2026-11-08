@@ -5,6 +5,7 @@ const ICONS = {
   plus: '<path d="M5 12h14M12 5v14"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   play: '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>',
@@ -371,8 +372,8 @@ function renderSourceRail() {
   list.innerHTML = state.files.map((file) => {
     const info = file.info
     const active = file.id === state.activeId
-    const thumb = info?.thumbnail
-      ? `<img src="${info.thumbnail}" alt="">`
+    const thumb = file.cover || info?.thumbnail
+      ? `<img src="${file.cover || info.thumbnail}" alt="">`
       : file.status === 'error'
         ? icon('alert', 16)
         : file.status === 'loading'
@@ -551,6 +552,45 @@ function previewSkeletonHtml() {
     <div class="asset-sheet"><div class="asset-sheet-skeleton"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>`
 }
 
+async function setCoverFromCurrentFrame() {
+  const file = activeFile()
+  if (!file?.info) return
+  const button = $('#set-cover')
+  const video = $('#preview-video')
+  if (!button || button.disabled) return
+  const duration = Number(file.info.duration) || 0
+  if (!duration) return
+  const requested = Number(video?.currentTime ?? ui.currentTime) || 0
+  const captureTime = Math.min(
+    Math.max(0, duration - 0.02),
+    nearestClipTime(file, requested)
+  )
+  video?.pause()
+  const original = button.innerHTML
+  button.disabled = true
+  button.innerHTML = `${icon('image', 13)} 截取中…`
+  try {
+    const cover = await api.captureCoverFrame({
+      sourcePath: file.path,
+      time: captureTime,
+      width: 960
+    })
+    if (activeFile()?.id !== file.id) return
+    file.cover = cover
+    file.coverTime = captureTime
+    if (video) video.poster = cover
+    renderSourceRail()
+    showToast('success', '素材封面已更新', `使用 ${formatTrimTime(captureTime)} 的画面`)
+  } catch (error) {
+    showToast('error', '无法截取封面', errorMessage(error))
+  } finally {
+    if (button.isConnected) {
+      button.innerHTML = original
+      button.disabled = !activeFile()?.info
+    }
+  }
+}
+
 function renderPreview() {
   const body = $('#preview-body')
   if (ui.qualityPreview.open) closeQualityPreview()
@@ -563,6 +603,7 @@ function renderPreview() {
   $('#preview-engine-text').textContent = '预览就绪'
   $('#preview-engine-chip').classList.remove('is-live')
   $('#system-player').disabled = !file
+  $('#set-cover').disabled = !file
 
   if (!file) {
     body.innerHTML = emptyPreviewHtml()
@@ -585,7 +626,7 @@ function renderPreview() {
   const audioText = info.audio ? `${info.audio.channelLayout === 'mono' ? '单声道' : '立体声'} · ${info.audio.bitrateLabel}` : '无音轨'
   body.innerHTML = `
     <div class="video-stage" id="video-stage">
-      <video id="preview-video" class="preview-video" poster="${info.thumbnail || ''}" preload="metadata" playsinline></video>
+      <video id="preview-video" class="preview-video" poster="${file.cover || info.thumbnail || ''}" preload="metadata" playsinline></video>
       <div class="stage-topline">
         <div class="stage-badges">
           <span>${escapeHtml(info.container)}</span><span>${escapeHtml(info.video.codecLabel)}</span>
@@ -1970,6 +2011,7 @@ function bindEvents() {
     const file = activeFile()
     if (file) void api.openPath(file.path)
   })
+  $('#set-cover').addEventListener('click', () => void setCoverFromCurrentFrame())
 
   $('#preview-body').addEventListener('wheel', (event) => {
     const file = activeFile()

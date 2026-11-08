@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('frameferry', {
 
   probeMedia: (filePath) => ipcRenderer.invoke('media:probe', filePath),
   getMediaUrl: (filePath) => ipcRenderer.invoke('media:url', filePath),
+  captureCoverFrame: (payload) => ipcRenderer.invoke('media:cover-frame', payload),
   getDefaultOutput: (sourcePath, format) =>
     ipcRenderer.invoke('media:default-output', { sourcePath, format }),
   renderQualityPreview: (payload) => ipcRenderer.invoke('preview:quality', payload),

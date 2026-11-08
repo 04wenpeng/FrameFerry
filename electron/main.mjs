@@ -431,6 +431,45 @@ ipcMain.handle('media:url', (_event, filePath) => {
   return `frameflow://media/?path=${encodeURIComponent(String(filePath))}`
 })
 
+function captureCoverFrame(sourcePath, time, width = 960) {
+  return new Promise((resolve, reject) => {
+    const safeWidth = Math.min(1600, Math.max(320, Number(width) || 960))
+    const child = spawnFfmpeg([
+      '-hide_banner', '-loglevel', 'error',
+      '-ss', String(Math.max(0, Number(time) || 0)),
+      '-i', sourcePath,
+      '-frames:v', '1',
+      '-vf', `scale=${safeWidth}:-2:flags=lanczos`,
+      '-q:v', '2',
+      '-an',
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg',
+      'pipe:1'
+    ])
+    const chunks = []
+    let stderr = ''
+    child.stdout?.on('data', (chunk) => chunks.push(chunk))
+    child.stderr?.on('data', (chunk) => { stderr = `${stderr}${chunk.toString()}`.slice(-2000) })
+    child.once('error', reject)
+    child.once('close', (code) => {
+      const data = Buffer.concat(chunks)
+      if (code === 0 && data.length) {
+        resolve(`data:image/jpeg;base64,${data.toString('base64')}`)
+        return
+      }
+      reject(new Error(stderr.trim() || `截取封面失败（${code}）`))
+    })
+  })
+}
+
+ipcMain.handle('media:cover-frame', async (_event, payload = {}) => {
+  const sourcePath = String(payload.sourcePath || '')
+  if (!sourcePath || !isVideoFile(sourcePath)) throw new Error('请选择视频素材')
+  const info = await stat(sourcePath).catch(() => null)
+  if (!info?.isFile()) throw new Error('源文件不可用')
+  return captureCoverFrame(sourcePath, Number(payload.time) || 0, payload.width)
+})
+
 ipcMain.handle('preview:quality', async (_event, payload = {}) => {
   const sourcePath = String(payload.sourcePath || '')
   if (!sourcePath) throw new Error('缺少源文件')
