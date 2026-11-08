@@ -656,7 +656,8 @@ function renderPreview() {
     }
   }
   const seek = (value) => {
-    ui.currentTime = Math.min(Number(value), video.duration || info.duration)
+    const target = Math.min(Number(value), video.duration || info.duration)
+    ui.currentTime = nearestClipTime(file, target)
     try { video.currentTime = ui.currentTime } catch {}
     paintTimeline()
     paintTrimPlayhead()
@@ -701,7 +702,13 @@ function renderPreview() {
   video.addEventListener('loadedmetadata', () => {
     ui.duration = video.duration || info.duration
     timeline.max = String(Math.max(ui.duration, 0.1))
+    const safeStart = nearestClipTime(file, ui.currentTime)
+    if (Math.abs(safeStart - ui.currentTime) > 0.01) {
+      ui.currentTime = safeStart
+      try { video.currentTime = safeStart } catch {}
+    }
     paintTimeline()
+    paintTrimPlayhead()
   })
   video.addEventListener('ended', () => { ui.playing = false; paintPlay() })
   central.addEventListener('click', togglePlay)
@@ -731,6 +738,32 @@ function paintTrimPlayhead() {
   const ratio = Math.min(1, Math.max(0, ui.currentTime / info.duration))
   const trimPlayhead = $('#trim-playhead')
   if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
+}
+
+function nearestClipTime(file, time) {
+  const clips = ensureClips(file)
+  if (!clips.length) return 0
+  const target = Number(time) || 0
+  const inside = clips.find((clip) => target >= clip.start - 0.001 && target <= clip.end + 0.001)
+  if (inside) return Math.min(inside.end, Math.max(inside.start, target))
+  const before = clips.filter((clip) => clip.end <= target).pop()
+  const after = clips.find((clip) => clip.start >= target)
+  if (!before) return after ? after.start : 0
+  if (!after) return before.end
+  return target - before.end <= after.start - target ? before.end : after.start
+}
+
+function clampPreviewToClips(file) {
+  if (!file) return
+  const video = $('#preview-video')
+  const next = nearestClipTime(file, ui.currentTime)
+  if (Math.abs(next - ui.currentTime) < 0.01) return
+  if (video) {
+    video.pause()
+    try { video.currentTime = next } catch {}
+  }
+  ui.currentTime = next
+  paintTrimPlayhead()
 }
 
 function ensureClipHistory(file) {
@@ -933,7 +966,7 @@ function renderTrimUI() {
   const timeAt = (event) => {
     const rect = stage.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-    return ratio * duration
+    return nearestClipTime(file, ratio * duration)
   }
   $('.clip-ruler')?.addEventListener('pointerdown', (event) => {
     if (!video) return
@@ -1800,7 +1833,7 @@ function bindEvents() {
         if (file?.info && video) {
           const rect = ($('#clip-stage') || timelineElement).getBoundingClientRect()
           const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-          const time = ratio * (Number(file.info.duration) || 0)
+          const time = nearestClipTime(file, ratio * (Number(file.info.duration) || 0))
           video.pause()
           video.currentTime = time
           ui.currentTime = time
@@ -1824,7 +1857,7 @@ function bindEvents() {
       const timeAt = (pointerEvent) => {
         const rect = timeline.getBoundingClientRect()
         const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
-        return ratio * duration
+        return nearestClipTime(file, ratio * duration)
       }
       const move = (pointerEvent) => {
         const time = timeAt(pointerEvent)
@@ -1907,6 +1940,7 @@ function bindEvents() {
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      clampPreviewToClips(file)
       renderTrimUI()
       renderDock()
       renderSourceRail()
