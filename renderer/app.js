@@ -490,7 +490,7 @@ function openQualityPreview() {
 
 function previewSkeletonHtml() {
   return `<div class="video-stage"><div class="stage-loading"><span></span></div></div>
-    <div class="filmstrip-shell"><div class="filmstrip-label"><span>关键帧</span><span>解析中</span></div><div class="filmstrip"><div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+    <div class="filmstrip-shell"><div class="filmstrip-label"><span>画面缩略</span><span>解析中</span></div><div class="filmstrip"><div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
     <div class="asset-sheet"><div class="asset-sheet-skeleton"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>`
 }
 
@@ -583,8 +583,8 @@ function renderPreview() {
     <div id="trim-slot"></div>
 
     <div class="filmstrip-shell">
-      <div class="filmstrip-label"><span>关键帧</span><span>${escapeHtml(info.video.fpsLabel)}</span></div>
-      <div class="filmstrip">
+      <div class="filmstrip-label"><span>画面缩略</span><span>点击定位</span></div>
+      <div class="filmstrip" title="点击缩略图跳到对应画面" aria-label="全片画面缩略图，点击可定位播放位置">
         ${info.filmstrip ? `<img src="${info.filmstrip}" alt="${escapeHtml(file.name)} 缩略帧">` : '<div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div>'}
         <span class="filmstrip-index">00 — ${escapeHtml(info.durationLabel)}</span>
       </div>
@@ -718,6 +718,18 @@ function renderPreview() {
   controlPlay.addEventListener('click', togglePlay)
   $('#stage-edit').addEventListener('click', () => $('#trim-toggle').click())
   timeline.addEventListener('input', (event) => seek(event.target.value))
+  $('.filmstrip')?.addEventListener('click', (event) => {
+    if (!video) return
+    const strip = event.currentTarget
+    const rect = strip.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    const target = ratio * (video.duration || info.duration)
+    video.pause()
+    video.currentTime = target
+    ui.currentTime = target
+    paintTimeline()
+    paintTrimPlayhead()
+  })
   mute.addEventListener('click', () => {
     if (!outputAudioAvailable()) return
     ui.muted = !ui.muted

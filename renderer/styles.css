@@ -1122,7 +1122,7 @@ input:focus-visible {
 
 .filmstrip-label span:last-child {
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: 8.5px;
   color: var(--dim);
 }
 
@@ -1135,6 +1135,12 @@ input:focus-visible {
   display: flex;
   align-items: center;
   padding: 5px;
+  cursor: pointer;
+}
+
+.filmstrip:hover img {
+  opacity: 0.92;
+  filter: saturate(1.05) brightness(1.05);
 }
 
 .filmstrip img {
