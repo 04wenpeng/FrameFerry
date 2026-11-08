@@ -4826,21 +4826,16 @@ input:focus-visible {
 /* Editable output file name */
 
 .output-name-field {
-  margin-top: 7px;
+  margin-top: 0;
 }
 
-.output-name-field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  color: var(--text-soft);
-  font-size: 10px;
+.output-name-hint {
+  color: var(--muted);
+  font-size: 11.5px;
 }
 
-.output-name-field-head small {
-  color: var(--dim);
-  font-size: 9px;
+.output-location-head {
+  margin-top: 11px;
 }
 
 .output-name-line {
