@@ -172,7 +172,7 @@ function ensureClips(file) {
 }
 
 function editPlan(file) {
-  const clips = ensureClips(file)
+  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : ensureClips(file)
   if (!clips.length) return { clips: [], duration: 0, start: 0, end: 0 }
   return {
     clips,
@@ -180,6 +180,50 @@ function editPlan(file) {
     start: clips[0].start,
     end: clips[clips.length - 1].end
   }
+}
+
+function outputTimeAtSource(file, sourceTime) {
+  const plan = editPlan(file)
+  if (!plan.clips.length) return 0
+  const target = nearestClipTime(file, sourceTime)
+  let elapsed = 0
+  for (const clip of plan.clips) {
+    if (target <= clip.start + 0.0001) return elapsed
+    if (target < clip.end - 0.0001) return elapsed + (target - clip.start)
+    elapsed += clip.end - clip.start
+  }
+  return elapsed
+}
+
+function sourceTimeAtOutput(file, outputTime) {
+  const plan = editPlan(file)
+  if (!plan.clips.length) return 0
+  let remaining = Math.min(Math.max(0, Number(outputTime) || 0), plan.duration)
+  for (let index = 0; index < plan.clips.length; index += 1) {
+    const clip = plan.clips[index]
+    const length = clip.end - clip.start
+    if (remaining <= length || index === plan.clips.length - 1) {
+      return clip.start + Math.min(remaining, length)
+    }
+    remaining -= length
+  }
+  return plan.clips[plan.clips.length - 1].end
+}
+
+function paintOutputTimeline(file) {
+  const timeline = $('#timeline')
+  if (!timeline || !file?.info) return
+  const plan = editPlan(file)
+  const total = plan.duration
+  const current = outputTimeAtSource(file, ui.currentTime)
+  timeline.max = String(Math.max(total, 0.1))
+  timeline.value = String(Math.min(total, current))
+  const ratio = total > 0 ? Math.min(1, current / total) : 0
+  timeline.style.background = `linear-gradient(90deg, var(--accent) ${ratio * 100}%, rgba(255,255,255,.2) ${ratio * 100}%)`
+  const currentLabel = $('#time-current')
+  const totalLabel = $('#time-total')
+  if (currentLabel) currentLabel.textContent = formatClock(current)
+  if (totalLabel) totalLabel.textContent = formatClock(total + 0.000001)
 }
 
 function isFileTrimmed(file) {
@@ -546,7 +590,7 @@ function renderPreview() {
         <div class="timeline-wrap"><input class="timeline" id="timeline" type="range" min="0" max="${Math.max(info.duration, 0.1)}" step="0.01" value="0"></div>
         <div class="stage-control-row">
           <button class="stage-control" id="control-play" aria-label="播放">${icon('play', 15)}</button>
-          <span class="stage-time"><span id="time-current">00:00</span> <i>/</i> ${escapeHtml(info.durationLabel)}</span>
+          <span class="stage-time"><span id="time-current">00:00</span> <i>/</i> <span id="time-total">${formatClock(info.duration)}</span></span>
           <span class="stage-control-spacer"></span>
           <button class="stage-control" id="control-mute" aria-label="静音">${icon('volume', 15)}</button>
           <button class="stage-control" id="control-fullscreen" aria-label="全屏">${icon('maximize', 14)}</button>
@@ -623,13 +667,7 @@ function renderPreview() {
     video.load()
   }).catch(() => {})
 
-  const paintTimeline = () => {
-    const max = Number(timeline.max) || info.duration || 0.1
-    const ratio = Math.min(1, Math.max(0, ui.currentTime / max))
-    timeline.value = String(ui.currentTime)
-    timeline.style.background = `linear-gradient(90deg, var(--accent) ${ratio * 100}%, rgba(255,255,255,.2) ${ratio * 100}%)`
-    $('#time-current').textContent = formatClock(ui.currentTime)
-  }
+  const paintTimeline = () => paintOutputTimeline(file)
   const paintPlay = () => {
     central.hidden = ui.playing
     controlPlay.innerHTML = ui.playing ? icon('pause', 15) : icon('play', 15)
@@ -718,7 +756,9 @@ function renderPreview() {
   video.addEventListener('ended', () => { ui.playing = false; paintPlay() })
   central.addEventListener('click', togglePlay)
   controlPlay.addEventListener('click', togglePlay)
-  timeline.addEventListener('input', (event) => seek(event.target.value))
+  timeline.addEventListener('input', (event) => {
+    seek(sourceTimeAtOutput(file, event.target.value))
+  })
   mute.addEventListener('click', () => {
     if (!outputAudioAvailable()) return
     ui.muted = !ui.muted
@@ -1050,6 +1090,7 @@ function renderTrimUI() {
 
   hydrateIcons(slot)
   paintTrimPlayhead()
+  paintOutputTimeline(file)
 
   const timeline = $('#clip-timeline')
   const stage = $('#clip-stage')
@@ -2107,6 +2148,7 @@ function bindEvents() {
         tip.style.left = `${tipPosition()}%`
       }
       paintTrimPlayhead()
+      paintOutputTimeline(file)
     }
     const move = (pointerEvent) => {
       const time = timeAt(pointerEvent)
