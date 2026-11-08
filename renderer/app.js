@@ -334,6 +334,7 @@ const state = {
   outputEdited: false,
   jobs: [],
   history: [],
+  historyUnread: 0,
   starting: false,
   maxed: false,
   advancedOpen: false,
@@ -1673,6 +1674,11 @@ function renderTitleMeta() {
   $('#menu-job-status').textContent = running ? `正在处理 ${running.sourceName}` : '当前没有进行中的任务'
   $('#menu-job-dot').classList.toggle('is-busy', Boolean(running))
   $('#menu-history-count').textContent = String(state.history.length)
+  const historyBadge = $('#history-badge')
+  if (historyBadge) {
+    historyBadge.hidden = state.historyUnread <= 0
+    historyBadge.textContent = String(Math.min(state.historyUnread, 9))
+  }
 
   $('#menu-engine').textContent = state.bootstrap?.ffmpeg.ready ? '已就绪' : '异常'
   const showOutput = $('[data-action="show-output"]')
@@ -2027,7 +2033,7 @@ function historyModalHtml() {
     <button class="modal-close" aria-label="关闭">${icon('x', 15)}</button>
     <div class="modal-head"><span class="modal-icon">${icon('history', 18)}</span><div><span class="eyebrow">CONVERSION LOG</span><h2>转换记录</h2></div><span class="modal-head-meta">${state.history.length} 条</span></div>
     <div class="history-list">${rows || `<div class="history-empty">${icon('history', 24)}<strong>还没有转换记录</strong><span>完成的输出会保留在这里，方便再次找到文件。</span></div>`}</div>
-    <div class="modal-footer"><span class="modal-footnote">${icon('folder', 12)}记录仅保存在本机 · ${escapeHtml(state.bootstrap?.userData || '')}</span>${state.history.length ? `<button class="danger-button" id="clear-history">${icon('trash', 13)}清空记录</button>` : ''}</div>
+    <div class="modal-footer"><span class="modal-footnote">${icon('folder', 12)}记录仅保存在本机 · ${escapeHtml(state.bootstrap?.userData || '')}</span>${state.history.length ? `<div class="modal-footer-actions"><button class="text-button history-read-button" id="mark-history-read" ${state.historyUnread ? '' : 'disabled'}>${icon('check', 13)}标为已读</button><button class="danger-button" id="clear-history">${icon('trash', 13)}清空记录</button></div>` : ''}</div>
   </div></div>`
 }
 
@@ -2461,9 +2467,16 @@ function bindEvents() {
     if (event.target.closest('.modal-close')) { closeModal(); return }
     const open = event.target.closest('[data-history-open]')
     if (open) { void api.showItemInFolder(open.dataset.historyOpen); return }
+    if (event.target.closest('#mark-history-read')) {
+      state.historyUnread = 0
+      renderTitleMeta()
+      openModal('history')
+      return
+    }
     if (event.target.closest('#clear-history')) {
       void api.clearHistory().then(() => {
         state.history = []
+        state.historyUnread = 0
         renderTitleMeta()
         openModal('history')
       })
@@ -2586,7 +2599,14 @@ async function init() {
     $('#maximize-icon').innerHTML = icon(state.maxed ? 'copy' : 'square', 12)
     state.jobs = await api.listJobs()
     api.onJobsUpdate(handleJobs)
-    api.onHistoryUpdate((history) => { state.history = history; renderTitleMeta() })
+    const knownHistoryIds = new Set(state.history.map((entry) => entry.id))
+    api.onHistoryUpdate((history) => {
+      const fresh = history.filter((entry) => !knownHistoryIds.has(entry.id))
+      state.history = history
+      if (fresh.length && state.modal !== 'history') state.historyUnread += fresh.length
+      for (const entry of history) knownHistoryIds.add(entry.id)
+      renderTitleMeta()
+    })
     api.onOpenFiles((paths) => { void addFiles(paths) })
     renderTitleMeta()
     renderStatus()

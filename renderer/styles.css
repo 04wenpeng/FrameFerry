@@ -4909,3 +4909,23 @@ input:focus-visible {
   font-family: var(--mono);
   font-size: 11.5px;
 }
+
+/* History read/clear actions */
+
+.modal-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.history-read-button {
+  color: var(--muted);
+}
+
+.history-read-button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.history-read-button:disabled {
+  opacity: 0.4;
+}
