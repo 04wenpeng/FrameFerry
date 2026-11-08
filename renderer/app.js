@@ -870,7 +870,7 @@ function redoClip() {
   restoreClipState(file, state)
 }
 
-function timelineRulerHtml(view, offset = 0) {
+function timelineRulerParts(view, offset = 0) {
   if (!(view.duration > 0)) return ''
   const target = view.duration / 6
   const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
@@ -890,7 +890,53 @@ function timelineRulerHtml(view, offset = 0) {
       labels.push(`<span class="clip-ruler-label ${index === 0 ? 'is-first' : ''}" style="left:${left}%">${formatClock(Math.round(time - offset))}</span>`)
     }
   }
-  return `<div class="clip-ruler" aria-hidden="true">${labels.join('')}${ticks.join('')}</div>`
+  return `${labels.join('')}${ticks.join('')}`
+}
+
+function timelineRulerHtml(view, offset = 0) {
+  return `<div class="clip-ruler" aria-hidden="true">${timelineRulerParts(view, offset)}</div>`
+}
+
+function refreshTimelineView(file) {
+  const view = clipView(file)
+  ui.clipView = view
+  const content = $('.clip-content')
+  if (!content || !file?.info) return
+  const sourceDuration = Number(file.info.duration) || 0
+  const pct = (value) => view.duration ? ((value - view.start) / view.duration) * 100 : 0
+  const film = content.querySelector('.trim-film')
+  if (film) {
+    const left = view.duration ? -(view.start / view.duration) * 100 : 0
+    const width = view.duration ? (sourceDuration / view.duration) * 100 : 100
+    film.style.left = `${left}%`
+    film.style.width = `${width}%`
+    film.style.right = 'auto'
+  }
+  for (const block of content.querySelectorAll('.clip-block')) {
+    const clip = (file.clips || []).find((item) => item.id === block.dataset.clipId)
+    if (!clip) continue
+    const left = pct(clip.start)
+    block.style.left = `${left}%`
+    block.style.width = `${Math.max(0, pct(clip.end) - left)}%`
+  }
+  for (const gap of content.querySelectorAll('.clip-gap')) {
+    const start = Number(gap.dataset.gapStart)
+    const end = Number(gap.dataset.gapEnd)
+    const left = pct(start)
+    gap.style.left = `${left}%`
+    gap.style.width = `${Math.max(0, pct(end) - left)}%`
+  }
+  for (const line of content.querySelectorAll('.clip-cut-line')) {
+    line.style.left = `${pct(Number(line.dataset.cutTime))}%`
+  }
+  const ruler = $('.clip-ruler')
+  if (ruler) ruler.innerHTML = timelineRulerParts(view, file.clips?.[0]?.start || 0)
+  const thumb = $('#timeline-scroll-thumb')
+  if (thumb && view.baseDuration > 0) {
+    thumb.style.left = `${(view.start / view.baseDuration) * 100}%`
+    thumb.style.width = `${Math.max(2, (view.duration / view.baseDuration) * 100)}%`
+  }
+  paintTrimPlayhead()
 }
 
 function renderTrimUI() {
@@ -930,20 +976,20 @@ function renderTrimUI() {
       if (index === 0) return ''
       const previous = clips[index - 1]
       if (Math.abs(previous.end - clip.start) > 0.01) return ''
-      return `<span class="clip-cut-line" style="left:${pct(clip.start)}%"></span>`
+      return `<span class="clip-cut-line" data-cut-time="${clip.start}" style="left:${pct(clip.start)}%"></span>`
     })
     .join('')
   const gaps = []
-  let gapCursor = view.start
+  let gapCursor = 0
   for (const clip of clips) {
     if (clip.start > gapCursor + 0.01) gaps.push({ start: gapCursor, end: clip.start })
     gapCursor = Math.max(gapCursor, clip.end)
   }
-  if (gapCursor < view.end - 0.01) gaps.push({ start: gapCursor, end: view.end })
+  if (gapCursor < view.baseDuration - 0.01) gaps.push({ start: gapCursor, end: view.baseDuration })
   const gapBlocks = gaps
     .map((gap) => {
       const left = pct(gap.start)
-      return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
+      return `<span class="clip-gap" data-gap-start="${gap.start}" data-gap-end="${gap.end}" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
     })
     .join('')
   const rulerHtml = timelineRulerHtml(view, clips[0]?.start || 0)
@@ -1806,6 +1852,7 @@ function bindEvents() {
     if (!stage) return
     event.preventDefault()
     const view = clipView(file)
+    const hadScrollbar = view.zoom > 1.01
     const rect = stage.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
     const direction = event.deltaY || event.deltaX || 0
@@ -1829,7 +1876,8 @@ function bindEvents() {
       if (Math.abs(start - view.start) < 0.001) return
       file.timelineView = { zoom: view.zoom, start }
     }
-    renderTrimUI()
+    if (hadScrollbar && file.timelineView.zoom > 1.01) refreshTimelineView(file)
+    else renderTrimUI()
   }, { passive: false })
 
   $('#history-button').addEventListener('click', () => openModal('history'))
@@ -1957,7 +2005,7 @@ function bindEvents() {
         const left = Math.min(travel, Math.max(0, clientX - trackRect.left - grab))
         const start = (left / travel) * maxStart
         file.timelineView = { zoom: view.zoom, start }
-        renderTrimUI()
+        refreshTimelineView(file)
       }
       if (!onThumb) apply(event.clientX)
       const move = (pointerEvent) => apply(pointerEvent.clientX)
