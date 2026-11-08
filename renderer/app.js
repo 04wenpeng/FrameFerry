@@ -237,7 +237,6 @@ const state = {
   defaultOutputDir: '',
   outputPath: '',
   outputEdited: false,
-  trimMode: false,
   jobs: [],
   history: [],
   starting: false,
@@ -490,7 +489,6 @@ function openQualityPreview() {
 
 function previewSkeletonHtml() {
   return `<div class="video-stage"><div class="stage-loading"><span></span></div></div>
-    <div class="filmstrip-shell"><div class="filmstrip-label"><span>画面缩略</span><span>解析中</span></div><div class="filmstrip"><div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
     <div class="asset-sheet"><div class="asset-sheet-skeleton"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>`
 }
 
@@ -506,8 +504,6 @@ function renderPreview() {
   $('#preview-engine-text').textContent = '预览就绪'
   $('#preview-engine-chip').classList.remove('is-live')
   $('#system-player').disabled = !file
-  $('#trim-toggle').disabled = !file?.info
-  updateTrimToggle()
 
   if (!file) {
     body.innerHTML = emptyPreviewHtml()
@@ -545,7 +541,6 @@ function renderPreview() {
           <button class="stage-control" id="control-play" aria-label="播放">${icon('play', 15)}</button>
           <span class="stage-time"><span id="time-current">00:00</span> <i>/</i> ${escapeHtml(info.durationLabel)}</span>
           <span class="stage-control-spacer"></span>
-          <button class="stage-edit-pill" id="stage-edit" title="剪辑片段">${icon('scissors', 13)}<span id="stage-edit-label">剪辑</span></button>
           <button class="stage-control" id="control-mute" aria-label="静音">${icon('volume', 15)}</button>
           <button class="stage-control" id="control-fullscreen" aria-label="全屏">${icon('maximize', 14)}</button>
         </div>
@@ -581,15 +576,6 @@ function renderPreview() {
     </div>
 
     <div id="trim-slot"></div>
-
-    <div class="filmstrip-shell">
-      <div class="filmstrip-label"><span>画面缩略</span><span>点击定位</span></div>
-      <div class="filmstrip" title="点击缩略图跳到对应画面" aria-label="全片画面缩略图，点击可定位播放位置">
-        ${info.filmstrip ? `<img src="${info.filmstrip}" alt="${escapeHtml(file.name)} 缩略帧">` : '<div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div>'}
-        <span class="filmstrip-index">00 — ${escapeHtml(info.durationLabel)}</span>
-        <div class="filmstrip-playhead" id="filmstrip-playhead"></div>
-      </div>
-    </div>
 
     <div class="asset-sheet">
       <div class="asset-sheet-head">
@@ -718,20 +704,7 @@ function renderPreview() {
   video.addEventListener('ended', () => { ui.playing = false; paintPlay() })
   central.addEventListener('click', togglePlay)
   controlPlay.addEventListener('click', togglePlay)
-  $('#stage-edit').addEventListener('click', () => $('#trim-toggle').click())
   timeline.addEventListener('input', (event) => seek(event.target.value))
-  $('.filmstrip')?.addEventListener('click', (event) => {
-    if (!video) return
-    const strip = event.currentTarget
-    const rect = strip.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-    const target = ratio * (video.duration || info.duration)
-    video.pause()
-    video.currentTime = target
-    ui.currentTime = target
-    paintTimeline()
-    paintTrimPlayhead()
-  })
   mute.addEventListener('click', () => {
     if (!outputAudioAvailable()) return
     ui.muted = !ui.muted
@@ -745,26 +718,9 @@ function renderPreview() {
   })
   $('#asset-reset').addEventListener('click', () => seek(ensureClips(file)[0]?.start || 0))
   timeline.addEventListener('mousedown', () => {})
-  updateTrimToggle()
   renderTrimUI()
   syncPreviewAudio()
   paintTrimPlayhead()
-}
-
-function updateTrimToggle() {
-  const button = $('#trim-toggle')
-  if (!button) return
-  const ready = Boolean(activeFile()?.info)
-  button.disabled = !ready
-  button.classList.toggle('is-active', state.trimMode && ready)
-  const label = $('#trim-toggle-label')
-  if (label) label.textContent = state.trimMode && ready ? '完成剪辑' : '剪辑'
-  const stageEdit = $('#stage-edit')
-  if (stageEdit) {
-    stageEdit.classList.toggle('is-active', state.trimMode && ready)
-    const stageLabel = $('#stage-edit-label')
-    if (stageLabel) stageLabel.textContent = state.trimMode ? '完成' : '剪辑'
-  }
 }
 
 function paintTrimPlayhead() {
@@ -773,8 +729,6 @@ function paintTrimPlayhead() {
   const ratio = Math.min(1, Math.max(0, ui.currentTime / info.duration))
   const trimPlayhead = $('#trim-playhead')
   if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
-  const stripPlayhead = $('#filmstrip-playhead')
-  if (stripPlayhead) stripPlayhead.style.left = `${ratio * 100}%`
 }
 
 function renderTrimUI() {
@@ -782,9 +736,8 @@ function renderTrimUI() {
   if (!slot) return
   const file = activeFile()
   const info = file?.info
-  if (!state.trimMode || !file || !info) {
+  if (!file || !info) {
     slot.innerHTML = ''
-    updateTrimToggle()
     return
   }
   const clips = ensureClips(file)
@@ -840,7 +793,6 @@ function renderTrimUI() {
         <button class="text-button clip-split" data-clip-action="split">${icon('scissors', 11)} 分割</button>
         <button class="text-button clip-delete" data-clip-action="delete" ${clips.length <= 1 ? 'disabled' : ''}>${icon('trash', 11)} 删除片段</button>
         <button class="text-button" data-clip-action="reset">${icon('rotate', 11)} 重置</button>
-        <button class="trim-done" data-clip-action="done">完成</button>
       </div>
     </div>
     <div class="clip-timeline" id="clip-timeline">
@@ -995,11 +947,6 @@ function handleClipAction(action) {
     return
   }
 
-  if (action === 'done') {
-    state.trimMode = false
-    updateTrimToggle()
-    renderTrimUI()
-  }
 }
 
 /* ---------- inspector ---------- */
@@ -1646,22 +1593,6 @@ function bindEvents() {
     const file = activeFile()
     if (file) void api.openPath(file.path)
   })
-  $('#trim-toggle').addEventListener('click', () => {
-    const file = activeFile()
-    if (!file?.info) return
-    state.trimMode = !state.trimMode
-    if (state.trimMode) closeQualityPreview()
-    const clips = ensureClips(file)
-    if (state.trimMode) {
-      const video = $('#preview-video')
-      const selected = clips.find((clip) => clip.id === file.selectedClipId) || clips[0]
-      if (video && selected) {
-        try { video.currentTime = selected.start } catch {}
-      }
-    }
-    updateTrimToggle()
-    renderTrimUI()
-  })
   $('#history-button').addEventListener('click', () => openModal('history'))
   $('#reset-settings').addEventListener('click', () => {
     state.settings = { ...DEFAULT_SETTINGS }
@@ -2002,10 +1933,8 @@ function bindEvents() {
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
       if (state.modal) return
-      if (state.trimMode) {
-        event.preventDefault()
-        handleClipAction('split')
-      }
+      event.preventDefault()
+      handleClipAction('split')
       return
     }
     if (event.code === 'Space' && activeFile()?.status === 'ready') {
