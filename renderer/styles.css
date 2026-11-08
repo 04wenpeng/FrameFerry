@@ -4512,3 +4512,28 @@ input:focus-visible {
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
+
+/* Handles sit flush against the selected clip edges, like a bracket. */
+
+.clip-handle-start::before {
+  left: 0;
+  right: auto;
+  transform: translateY(-50%);
+}
+
+.clip-handle-end::before {
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.clip-handle-start::after {
+  left: 3px;
+  transform: translateY(-50%);
+}
+
+.clip-handle-end::after {
+  left: auto;
+  right: 3px;
+  transform: translateY(-50%);
+}
