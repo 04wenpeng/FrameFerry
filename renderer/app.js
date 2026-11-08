@@ -1567,9 +1567,9 @@ function renderSettings() {
       <div class="quality-head"><div class="field-label"><span>文件名</span></div><span class="output-name-hint">可修改</span></div>
       <div class="output-name-field">
         <div class="output-name-line">
-          <span class="output-name-edit-icon">${icon('edit', 11)}</span>
           <input class="output-name-input" id="output-name-input" value="${escapeHtml(outputStem)}" placeholder="输出文件名" spellcheck="false" aria-label="输出文件名" title="点击修改输出文件名" ${!file || !outputPath ? 'disabled' : ''}>
           <span class="output-name-ext">.${escapeHtml(settings.format)}</span>
+          <span class="output-name-edit-icon">${icon('edit', 11)}</span>
         </div>
       </div>
       <div class="quality-head output-location-head"><div class="field-label"><span>输出位置</span></div><button class="text-button" data-action="choose-output" ${!file ? 'disabled' : ''}>更改</button></div>
