@@ -4687,3 +4687,35 @@ input:focus-visible {
   overflow: hidden;
   border-radius: 4px;
 }
+
+/* Horizontal timeline scrollbar (visible when zoomed). */
+
+.timeline-scroll {
+  position: relative;
+  height: 8px;
+  margin: 0 9px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  user-select: none;
+}
+
+.timeline-scroll-thumb {
+  position: absolute;
+  top: -1px;
+  height: 10px;
+  min-width: 14px;
+  border-radius: 5px;
+  background: #565a61;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+
+.timeline-scroll-thumb:hover {
+  background: #6d7178;
+}
+
+.timeline-scroll-thumb:active {
+  background: #858a92;
+  cursor: grabbing;
+}

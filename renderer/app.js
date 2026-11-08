@@ -949,6 +949,13 @@ function renderTrimUI() {
   const rulerHtml = timelineRulerHtml(view, clips[0]?.start || 0)
   const filmLeft = view.duration ? -(view.start / view.duration) * 100 : 0
   const filmWidth = view.duration ? (duration / view.duration) * 100 : 100
+  const scrollRatio = view.baseDuration ? view.duration / view.baseDuration : 1
+  const scrollLeft = view.baseDuration ? (view.start / view.baseDuration) * 100 : 0
+  const scrollbarHtml = view.zoom > 1.01
+    ? `<div class="timeline-scroll" id="timeline-scrollbar" title="拖动查看时间轴其他位置">
+        <div class="timeline-scroll-thumb" id="timeline-scroll-thumb" style="left:${scrollLeft}%;width:${Math.max(2, scrollRatio * 100)}%"></div>
+      </div>`
+    : ''
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
@@ -984,6 +991,7 @@ function renderTrimUI() {
         <span class="clip-trim-tip" id="clip-trim-tip" hidden></span>
       </div>
     </div>
+    ${scrollbarHtml}
     <div class="clip-readout">
       <div class="clip-selected-line">
         <span class="clip-badge">片段 ${String(selectedIndex + 1).padStart(2, '0')}</span>
@@ -1929,6 +1937,37 @@ function bindEvents() {
         return
       }
       lastTimelineClick = { at: now, x: event.clientX, y: event.clientY }
+    }
+
+    const scrollbar = event.target.closest('#timeline-scrollbar')
+    if (scrollbar && event.button === 0) {
+      const file = activeFile()
+      if (!file?.info) return
+      const view = clipView(file)
+      const thumb = $('#timeline-scroll-thumb')
+      if (!thumb || view.baseDuration <= view.duration) return
+      const trackRect = scrollbar.getBoundingClientRect()
+      const thumbRect = thumb.getBoundingClientRect()
+      const maxStart = view.baseDuration - view.duration
+      const travel = Math.max(1, trackRect.width - thumbRect.width)
+      const onThumb = Boolean(event.target.closest('#timeline-scroll-thumb'))
+      const grab = onThumb ? event.clientX - thumbRect.left : thumbRect.width / 2
+      event.preventDefault()
+      const apply = (clientX) => {
+        const left = Math.min(travel, Math.max(0, clientX - trackRect.left - grab))
+        const start = (left / travel) * maxStart
+        file.timelineView = { zoom: view.zoom, start }
+        renderTrimUI()
+      }
+      if (!onThumb) apply(event.clientX)
+      const move = (pointerEvent) => apply(pointerEvent.clientX)
+      const up = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+      return
     }
 
     const grip = event.target.closest('.playhead-grip')
