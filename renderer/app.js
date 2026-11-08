@@ -250,16 +250,24 @@ function formatTrimTime(seconds) {
 
 const FORMAT_META = {
   mp4: { label: 'MP4', note: '通用分享' },
+  m4v: { label: 'M4V', note: 'Apple 播放' },
   mov: { label: 'MOV', note: '剪辑交付' },
-  webm: { label: 'WebM', note: '网页播放' },
   mkv: { label: 'MKV', note: '多轨归档' },
+  webm: { label: 'WebM', note: '网页播放' },
+  avi: { label: 'AVI', note: '老设备兼容' },
+  ts: { label: 'TS', note: '流媒体录制' },
+  flv: { label: 'FLV', note: '旧网页平台' },
   gif: { label: 'GIF', note: '无声动图' }
 }
 const FORMAT_CODECS = {
   mp4: ['h264', 'h265'],
+  m4v: ['h264', 'h265'],
   mov: ['h264', 'prores'],
-  webm: ['vp9'],
   mkv: ['h264', 'h265', 'vp9'],
+  webm: ['vp9'],
+  avi: ['h264'],
+  ts: ['h264', 'h265'],
+  flv: ['h264'],
   gif: ['gif']
 }
 const CODEC_LABEL = {
@@ -1422,7 +1430,7 @@ function renderSettings() {
 
     <div class="settings-group">
       <div class="group-head"><span class="group-index">02</span><span>容器格式</span><span class="group-hint">${FORMAT_META[settings.format].note}</span></div>
-      <div class="format-row">${['mp4', 'mov', 'webm', 'mkv', 'gif'].map(formatChip).join('')}</div>
+      <div class="format-row">${['mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'ts', 'flv', 'gif'].map(formatChip).join('')}</div>
     </div>
 
     <div class="settings-row">
@@ -1508,8 +1516,8 @@ function renderSettings() {
       <div class="advanced-body ${state.advancedOpen ? 'is-open' : ''}"><div class="advanced-inner">
         <label class="toggle-row"><span><strong>硬件加速</strong><small>${hardware ? `检测到 ${escapeHtml(hardware.label)}` : '未检测到可用硬件编码器'}</small></span>
           <button class="switch ${settings.hardware ? 'is-on' : ''}" role="switch" aria-checked="${settings.hardware}" data-toggle="hardware" ${!hardware || settings.videoCodec !== 'h264' ? 'disabled' : ''}><span class="switch-thumb"></span></button></label>
-        <label class="toggle-row"><span><strong>流式优化</strong><small>MP4 / MOV 将 moov 前置，便于边下边播</small></span>
-          <button class="switch ${settings.faststart ? 'is-on' : ''}" role="switch" aria-checked="${settings.faststart}" data-toggle="faststart" ${!['mp4', 'mov'].includes(settings.format) ? 'disabled' : ''}><span class="switch-thumb"></span></button></label>
+        <label class="toggle-row"><span><strong>流式优化</strong><small>MP4 / MOV / M4V 将 moov 前置，便于边下边播</small></span>
+          <button class="switch ${settings.faststart ? 'is-on' : ''}" role="switch" aria-checked="${settings.faststart}" data-toggle="faststart" ${!['mp4', 'mov', 'm4v'].includes(settings.format) ? 'disabled' : ''}><span class="switch-thumb"></span></button></label>
         <div class="advanced-meta">${icon('zap', 12)}${hardware && settings.hardware && settings.videoCodec === 'h264' ? '硬件编码失败时自动回退 CPU，不中断任务' : '使用多线程 CPU 编码，稳定且兼容性最佳'}</div>
       </div></div>
     </div>
@@ -1741,8 +1749,12 @@ function updateSettings(patch, options = {}) {
     if (!FORMAT_CODECS[patch.format].includes(next.videoCodec)) next.videoCodec = FORMAT_CODECS[patch.format][0]
   }
   if (patch.format === 'webm') { next.audioCodec = 'opus'; next.faststart = false }
-  if (patch.format === 'mp4' || patch.format === 'mov') {
+  if (patch.format === 'mp4' || patch.format === 'mov' || patch.format === 'm4v') {
     next.faststart = true
+    next.audioCodec = 'aac'
+  }
+  if (patch.format === 'avi' || patch.format === 'ts' || patch.format === 'flv') {
+    next.faststart = false
     next.audioCodec = 'aac'
   }
   if (patch.videoCodec === 'prores') {
@@ -1752,7 +1764,7 @@ function updateSettings(patch, options = {}) {
   if (patch.format && patch.format !== 'gif' && previousFormat === 'gif') {
     next.audio = true
   }
-  if (next.format === 'mp4' || next.format === 'mov') next.audioCodec = 'aac'
+  if (next.format === 'mp4' || next.format === 'mov' || next.format === 'm4v' || next.format === 'avi' || next.format === 'ts' || next.format === 'flv') next.audioCodec = 'aac'
   if (next.format === 'webm') next.audioCodec = 'opus'
   const file = activeFile()
   if (file && next.format !== previousFormat) {

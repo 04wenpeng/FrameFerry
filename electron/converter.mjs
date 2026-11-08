@@ -6,9 +6,13 @@ import { spawnFfmpeg } from './tools.mjs'
 
 const FORMAT_CODECS = {
   mp4: ['h264', 'h265'],
+  m4v: ['h264', 'h265'],
   mov: ['h264', 'prores'],
-  webm: ['vp9'],
   mkv: ['h264', 'h265', 'vp9'],
+  webm: ['vp9'],
+  avi: ['h264'],
+  ts: ['h264', 'h265'],
+  flv: ['h264'],
   gif: ['gif']
 }
 
@@ -187,10 +191,10 @@ export function buildArguments({ sourcePath, outputPath, settings, meta, useHard
     }
   }
 
-  if ((format === 'mp4' || format === 'mov') && settings.faststart !== false) {
+  if ((format === 'mp4' || format === 'mov' || format === 'm4v') && settings.faststart !== false) {
     args.push('-movflags', '+faststart')
   }
-  if (codec === 'h265' && (format === 'mp4' || format === 'mov')) args.push('-tag:v', 'hvc1')
+  if (codec === 'h265' && (format === 'mp4' || format === 'mov' || format === 'm4v')) args.push('-tag:v', 'hvc1')
   if (format === 'gif') args.push('-loop', '0')
 
   args.push(outputPath)
