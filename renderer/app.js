@@ -669,7 +669,7 @@ function renderPreview() {
 
   const paintTimeline = () => paintOutputTimeline(file)
   const paintPlay = () => {
-    central.hidden = ui.playing
+    central.classList.toggle('is-hidden', ui.playing)
     controlPlay.innerHTML = ui.playing ? icon('pause', 15) : icon('play', 15)
     $('#preview-engine-text').textContent = ui.playing ? '正在播放' : '预览就绪'
     $('#preview-engine-chip').classList.toggle('is-live', ui.playing)
@@ -825,6 +825,7 @@ function renderPreview() {
   $('#asset-reset').addEventListener('click', () => seek(ensureClips(file)[0]?.start || 0))
   timeline.addEventListener('mousedown', () => {})
   renderTrimUI()
+  paintPlay()
   syncPreviewAudio()
   paintTrimPlayhead()
 }

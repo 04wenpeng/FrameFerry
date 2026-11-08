@@ -950,45 +950,47 @@ input:focus-visible {
   z-index: 4;
   left: 50%;
   top: 50%;
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 0;
   border-radius: 50%;
   color: #fff;
-  background: rgba(10, 12, 15, 0.55);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.36);
-  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+  background: radial-gradient(circle, rgba(8, 10, 13, 0.44) 0%, rgba(8, 10, 13, 0.18) 52%, transparent 72%);
+  box-shadow: none;
+  transition:
+    transform 0.2s,
+    background 0.2s,
+    opacity 0.18s ease,
+    visibility 0.18s ease;
+}
+
+.stage-play.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.92);
 }
 
 .stage-play svg {
   display: block;
+  width: 24px;
+  height: 24px;
   margin: 0;
   /* 三角形的视觉重心偏左，向右做 2px 光学居中 */
   transform: translateX(2px);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
 }
 
 .stage-play::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 50%;
-  transition: 0.2s;
+  display: none;
 }
 
 .stage-play:hover {
   transform: translate(-50%, -50%) scale(1.06);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.stage-play:hover::before {
-  inset: -9px;
-  border-color: rgba(255, 96, 56, 0.25);
+  background: rgba(255, 96, 56, 0.88);
 }
 
 .stage-controls {
