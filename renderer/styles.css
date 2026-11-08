@@ -4768,3 +4768,30 @@ input:focus-visible {
   left: auto;
   transform: translateY(-50%);
 }
+
+/* Trim handles sit centered on the clip boundary, above the clipped media layer. */
+
+.clip-handle {
+  width: 16px;
+  transform: translateX(-50%);
+}
+
+.clip-handle-start,
+.clip-handle-end {
+  left: 0;
+  right: auto;
+}
+
+.clip-handle-start::before,
+.clip-handle-end::before {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}
+
+.clip-handle-start::after,
+.clip-handle-end::after {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}

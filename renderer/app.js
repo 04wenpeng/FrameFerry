@@ -1022,6 +1022,13 @@ function refreshTimelineView(file) {
   for (const line of content.querySelectorAll('.clip-cut-line')) {
     line.style.left = `${pct(Number(line.dataset.cutTime))}%`
   }
+  const selectedClip = (file.clips || []).find((clip) => clip.id === file.selectedClipId)
+  if (selectedClip) {
+    const startHandle = $('.clip-handle-start')
+    const endHandle = $('.clip-handle-end')
+    if (startHandle) startHandle.style.left = `${pct(selectedClip.start)}%`
+    if (endHandle) endHandle.style.left = `${pct(selectedClip.end)}%`
+  }
   const ruler = $('.clip-ruler')
   if (ruler) ruler.innerHTML = timelineRulerParts(view, file.clips?.[0]?.start || 0)
   const thumb = $('#timeline-scroll-thumb')
@@ -1060,10 +1067,10 @@ function renderTrimUI() {
     return `<div class="clip-block ${isSelected ? 'is-selected' : ''}" data-clip-id="${clip.id}" style="left:${left}%;width:${width}%">
       <span class="clip-block-index">${String(index + 1).padStart(2, '0')}</span>
       <span class="clip-block-duration">${formatTrimTime(clip.end - clip.start)}</span>
-      ${isSelected ? `<button class="clip-handle clip-handle-start" data-clip-handle="start" aria-label="调整片段入点"><span></span></button>` : ''}
-      ${isSelected ? `<button class="clip-handle clip-handle-end" data-clip-handle="end" aria-label="调整片段出点"><span></span></button>` : ''}
     </div>`
   }).join('')
+  const selectedHandles = `<button class="clip-handle clip-handle-start" data-clip-handle="start" data-clip-id="${selected.id}" style="left:${pct(selected.start)}%" aria-label="调整片段入点"><span></span></button>
+    <button class="clip-handle clip-handle-end" data-clip-handle="end" data-clip-id="${selected.id}" style="left:${pct(selected.end)}%" aria-label="调整片段出点"><span></span></button>`
   const cutLines = clips
     .map((clip, index) => {
       if (index === 0) return ''
@@ -1124,6 +1131,7 @@ function renderTrimUI() {
           ${blocks}
           ${cutLines}
         </div>
+        ${selectedHandles}
         <div class="trim-playhead" id="trim-playhead">
           <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
         </div>
@@ -2148,13 +2156,15 @@ function bindEvents() {
         const fromLeft = event.clientX - rect.left
         const fromRight = rect.right - event.clientX
         if (Math.min(fromLeft, fromRight) <= 24) {
-          handle = block.querySelector(fromLeft <= fromRight ? '.clip-handle-start' : '.clip-handle-end')
+          handle = $('#trim-slot').querySelector(fromLeft <= fromRight ? '.clip-handle-start' : '.clip-handle-end')
         }
       }
     }
     if (!handle) return
     const file = activeFile()
-    const block = handle.closest('.clip-block')
+    const trimSlot = $('#trim-slot')
+    const block = handle.closest('.clip-block') ||
+      trimSlot.querySelector(`.clip-block[data-clip-id="${handle.dataset.clipId}"]`)
     const timeline = $('#clip-stage')
     const video = $('#preview-video')
     if (!file?.info || !block || !timeline) return
@@ -2171,12 +2181,13 @@ function bindEvents() {
     event.stopPropagation()
     video?.pause()
 
+    const pct = (value) => view.duration ? ((value - view.start) / view.duration) * 100 : 0
     const timeAt = (pointerEvent) => {
       const rect = timeline.getBoundingClientRect()
       const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
       return view.start + ratio * view.duration
     }
-    const tipPosition = () => Math.min(94, Math.max(6, duration ? ((which === 'start' ? clip.start : clip.end) / duration) * 100 : 50))
+    const tipPosition = () => Math.min(94, Math.max(6, pct(which === 'start' ? clip.start : clip.end)))
     const tip = $('#clip-trim-tip')
     if (tip) {
       tip.hidden = false
@@ -2185,9 +2196,13 @@ function bindEvents() {
     }
     let historyPushed = false
     const refresh = () => {
-      const left = duration ? (clip.start / duration) * 100 : 0
+      const left = pct(clip.start)
       block.style.left = `${left}%`
-      block.style.width = `${Math.max(0, (duration ? (clip.end / duration) * 100 : 0) - left)}%`
+      block.style.width = `${Math.max(0, pct(clip.end) - left)}%`
+      const startHandle = trimSlot.querySelector('.clip-handle-start')
+      const endHandle = trimSlot.querySelector('.clip-handle-end')
+      if (startHandle) startHandle.style.left = `${pct(clip.start)}%`
+      if (endHandle) endHandle.style.left = `${pct(clip.end)}%`
       const blockDuration = $('.clip-block-duration', block)
       if (blockDuration) blockDuration.textContent = formatTrimTime(clip.end - clip.start)
       const range = $('#clip-selected-range')
