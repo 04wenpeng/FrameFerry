@@ -1673,8 +1673,7 @@ function renderTitleMeta() {
   $('#menu-job-status').textContent = running ? `正在处理 ${running.sourceName}` : '当前没有进行中的任务'
   $('#menu-job-dot').classList.toggle('is-busy', Boolean(running))
   $('#menu-history-count').textContent = String(state.history.length)
-  $('#history-badge').hidden = !state.history.length
-  $('#history-badge').textContent = String(Math.min(state.history.length, 9))
+
   $('#menu-engine').textContent = state.bootstrap?.ffmpeg.ready ? '已就绪' : '异常'
   const showOutput = $('[data-action="show-output"]')
   if (showOutput) showOutput.disabled = !state.outputPath
@@ -1693,7 +1692,6 @@ function renderStatus() {
     ? `<span class="status-job">${icon('zap', 11)}正在转换 ${Math.round(running.progress)}%</span>`
     : `<span class="status-idle">${state.jobs.length ? `${state.jobs.length} 个任务` : '空闲'}</span>`
   $('#status-app-version').textContent = `v${state.bootstrap?.version || '1.0.0'}`
-  $('#history-badge').hidden = !state.history.length
 }
 
 function renderInspector() {
