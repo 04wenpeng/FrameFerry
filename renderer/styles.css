@@ -4576,3 +4576,15 @@ input:focus-visible {
   right: auto;
   transform: translate(-50%, -50%);
 }
+
+/* Taller split line: it extends above and below the thumbnail strip. */
+
+.clip-timeline {
+  overflow: visible;
+  margin: 14px 0 13px;
+}
+
+.clip-timeline .trim-playhead {
+  top: -12px;
+  bottom: -12px;
+}
