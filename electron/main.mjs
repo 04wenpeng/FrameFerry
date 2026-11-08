@@ -171,6 +171,7 @@ async function initializeServices() {
         sizeLabel: job.sizeLabel,
         duration: job.duration,
         hardware: job.usedHardware ? job.hardwareLabel : '',
+        cover: job.cover || '',
         finishedAt: job.finishedAt
       })
       history = history.slice(0, 40)

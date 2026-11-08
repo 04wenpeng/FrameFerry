@@ -1931,7 +1931,8 @@ async function startConversion() {
       outputPath: state.outputPath,
       meta: file.info,
       clips: clip.clips.map((item) => ({ start: item.start, end: item.end })),
-      settings: state.settings
+      settings: state.settings,
+      cover: file.cover || ''
     })
     const trimmed = isFileTrimmed(file)
     showToast('info', '已加入转换队列', `${file.name} → ${state.settings.format.toUpperCase()}${trimmed ? ` · 片段 ${formatTrimTime(clip.duration)}` : ''}`)
@@ -2022,12 +2023,17 @@ function closeModal() {
 }
 
 function historyModalHtml() {
-  const rows = state.history.map((entry) => `<div class="history-row">
-    <div class="history-format">${escapeHtml(entry.format.toUpperCase())}</div>
+  const rows = state.history.map((entry) => {
+    const cover = entry.cover
+      ? `<img class="history-cover" src="${escapeHtml(entry.cover)}" alt="">`
+      : escapeHtml(entry.format.toUpperCase())
+    return `<div class="history-row">
+    <div class="history-format ${entry.cover ? 'has-cover' : ''}">${cover}</div>
     <div class="history-main"><strong>${escapeHtml(entry.outputName)}</strong><span>来自 ${escapeHtml(entry.sourceName)} · ${escapeHtml(CODEC_LABEL[entry.videoCodec] || entry.videoCodec)}${entry.hardware ? ` · ${escapeHtml(entry.hardware)}` : ''}</span></div>
     <div class="history-meta"><strong>${escapeHtml(entry.sizeLabel)}</strong><span>${entry.finishedAt ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(entry.finishedAt)) : '—'}</span></div>
     <button class="icon-button" data-history-open="${escapeHtml(entry.outputPath)}" title="打开输出位置">${icon('folder', 14)}</button>
-  </div>`).join('')
+  </div>`
+  }).join('')
   return `<div class="modal-backdrop"><div class="modal" style="width:760px" role="dialog" aria-modal="true">
     <button class="modal-close" aria-label="关闭">${icon('x', 15)}</button>
     <div class="modal-head"><span class="modal-icon">${icon('history', 18)}</span><div><span class="eyebrow">CONVERSION LOG</span><h2>转换记录</h2></div><span class="modal-head-meta">${state.history.length} 条</span></div>

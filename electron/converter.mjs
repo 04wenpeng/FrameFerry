@@ -248,7 +248,7 @@ export class ConversionQueue {
   snapshot() {
     return this.jobs.map((job) => {
       const {
-        child, cancelRequested, args, startedAt, finishedAt, ...safe
+        child, cancelRequested, args, startedAt, finishedAt, cover, ...safe
       } = job
       return { ...safe }
     })
@@ -358,11 +358,17 @@ export class ConversionQueue {
       clips: validSegments
     }
 
+    const cover = typeof input?.cover === 'string' &&
+      input.cover.startsWith('data:image/') &&
+      input.cover.length < 2_000_000
+      ? input.cover
+      : ''
     const job = {
       id: randomUUID(),
       status: 'queued',
       sourcePath,
       sourceName: path.basename(sourcePath),
+      cover,
       outputPath,
       outputName: path.basename(outputPath),
       format,
