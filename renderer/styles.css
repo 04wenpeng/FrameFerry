@@ -4825,14 +4825,32 @@ input:focus-visible {
 
 /* Editable output file name */
 
+.output-name-field {
+  margin-top: 7px;
+}
+
+.output-name-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.output-name-field-head small {
+  color: var(--dim);
+  font-size: 9px;
+}
+
 .output-name-line {
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
+  height: 30px;
   min-width: 0;
   margin-bottom: 4px;
-  padding: 0 6px;
+  padding: 0 7px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
