@@ -349,6 +349,25 @@ function emptyPreviewHtml() {
   </div>`
 }
 
+function outputAudioAvailable() {
+  return state.settings.audio !== false && state.settings.format !== 'gif'
+}
+
+function syncPreviewAudio() {
+  const video = $('#preview-video')
+  const mute = $('#control-mute')
+  if (!video || !mute) return
+  const available = outputAudioAvailable()
+  video.muted = !available || ui.muted
+  mute.disabled = !available
+  mute.innerHTML = icon(video.muted ? 'volumeX' : 'volume', 15)
+  mute.title = available
+    ? (ui.muted ? '取消静音' : '静音预览')
+    : (state.settings.format === 'gif' ? 'GIF 输出不含音轨' : '输出已移除音轨')
+  mute.setAttribute('aria-label', mute.title)
+  mute.setAttribute('aria-pressed', String(video.muted))
+}
+
 function previewSkeletonHtml() {
   return `<div class="video-stage"><div class="stage-loading"><span></span></div></div>
     <div class="filmstrip-shell"><div class="filmstrip-label"><span>关键帧</span><span>解析中</span></div><div class="filmstrip"><div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
@@ -551,9 +570,9 @@ function renderPreview() {
   $('#stage-edit').addEventListener('click', () => $('#trim-toggle').click())
   timeline.addEventListener('input', (event) => seek(event.target.value))
   mute.addEventListener('click', () => {
+    if (!outputAudioAvailable()) return
     ui.muted = !ui.muted
-    video.muted = ui.muted
-    mute.innerHTML = icon(ui.muted ? 'volumeX' : 'volume', 15)
+    syncPreviewAudio()
   })
   $('#control-fullscreen').addEventListener('click', async () => {
     try {
@@ -565,6 +584,7 @@ function renderPreview() {
   timeline.addEventListener('mousedown', () => {})
   updateTrimToggle()
   renderTrimUI()
+  syncPreviewAudio()
 }
 
 function updateTrimToggle() {
@@ -946,7 +966,7 @@ function renderSettings() {
           <option value="256" ${settings.audioBitrate === 256 ? 'selected' : ''}>256 kbps</option>
           <option value="320" ${settings.audioBitrate === 320 ? 'selected' : ''}>320 kbps</option>
         </select>`}${icon('chevronDown', 12)}</div>
-      </div>` : `<div class="audio-disabled-row">${icon('volumeX', 12)} 输出将不包含音频轨道</div>`}
+      </div>` : `<div class="audio-disabled-row">${icon('volumeX', 12)} 输出将不包含音频轨道 · 预览已静音</div>`}
     </div>
 
     <div class="advanced-block">
@@ -1195,8 +1215,8 @@ function updateSettings(patch, options = {}) {
     next.format = 'mov'; next.audioCodec = 'aac'; next.faststart = true; next.audio = true
   }
   if (patch.format === 'gif') { next.videoCodec = 'gif'; next.audio = false }
-  if (patch.format && patch.format !== 'gif' && next.videoCodec === 'gif') {
-    next.videoCodec = FORMAT_CODECS[patch.format][0]; next.audio = true
+  if (patch.format && patch.format !== 'gif' && previousFormat === 'gif') {
+    next.audio = true
   }
   if (next.format === 'mp4' || next.format === 'mov') next.audioCodec = 'aac'
   if (next.format === 'webm') next.audioCodec = 'opus'
@@ -1210,6 +1230,7 @@ function updateSettings(patch, options = {}) {
   if (!options.keepPreset) state.preset = 'custom'
   if (!options.skipRender) renderSettings()
   renderTitleMeta()
+  syncPreviewAudio()
 }
 
 function applyPreset(id) {

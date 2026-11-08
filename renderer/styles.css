@@ -1050,6 +1050,13 @@ input:focus-visible {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.stage-control:disabled,
+.stage-control:disabled:hover {
+  color: rgba(255, 255, 255, 0.3);
+  background: transparent;
+  cursor: not-allowed;
+}
+
 .stage-time {
   margin-left: 3px;
   font-family: var(--mono);
