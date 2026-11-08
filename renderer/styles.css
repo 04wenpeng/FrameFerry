@@ -4719,3 +4719,14 @@ input:focus-visible {
   background: #858a92;
   cursor: grabbing;
 }
+
+/* The thumbnail strip fills the whole timeline; no black side gutters. */
+.clip-stage {
+  inset: 0;
+}
+
+.clip-ruler,
+.timeline-scroll {
+  margin-left: 0;
+  margin-right: 0;
+}
