@@ -587,6 +587,7 @@ function renderPreview() {
       <div class="filmstrip" title="点击缩略图跳到对应画面" aria-label="全片画面缩略图，点击可定位播放位置">
         ${info.filmstrip ? `<img src="${info.filmstrip}" alt="${escapeHtml(file.name)} 缩略帧">` : '<div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div>'}
         <span class="filmstrip-index">00 — ${escapeHtml(info.durationLabel)}</span>
+        <div class="filmstrip-playhead" id="filmstrip-playhead"></div>
       </div>
     </div>
 
@@ -670,6 +671,7 @@ function renderPreview() {
     ui.currentTime = Math.min(Number(value), video.duration || info.duration)
     try { video.currentTime = ui.currentTime } catch {}
     paintTimeline()
+    paintTrimPlayhead()
   }
 
   video.addEventListener('play', () => { ui.playing = true; paintPlay() })
@@ -746,6 +748,7 @@ function renderPreview() {
   updateTrimToggle()
   renderTrimUI()
   syncPreviewAudio()
+  paintTrimPlayhead()
 }
 
 function updateTrimToggle() {
@@ -765,11 +768,13 @@ function updateTrimToggle() {
 }
 
 function paintTrimPlayhead() {
-  const playhead = $('#trim-playhead')
   const info = activeFile()?.info
-  if (!playhead || !info?.duration) return
+  if (!info?.duration) return
   const ratio = Math.min(1, Math.max(0, ui.currentTime / info.duration))
-  playhead.style.left = `${ratio * 100}%`
+  const trimPlayhead = $('#trim-playhead')
+  if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
+  const stripPlayhead = $('#filmstrip-playhead')
+  if (stripPlayhead) stripPlayhead.style.left = `${ratio * 100}%`
 }
 
 function renderTrimUI() {

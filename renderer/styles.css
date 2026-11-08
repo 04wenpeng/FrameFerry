@@ -4485,3 +4485,30 @@ input:focus-visible {
   width: 13px;
   height: 13px;
 }
+
+/* ---------- Main filmstrip playhead ---------- */
+
+.filmstrip-playhead {
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: #fff;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.filmstrip-playhead::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 2px 2px 50% 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
