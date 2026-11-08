@@ -262,6 +262,11 @@ const ui = {
     token: 0,
     timer: null,
     length: 10
+  },
+  clipView: {
+    start: 0,
+    end: 0,
+    duration: 0
   }
 }
 
@@ -733,11 +738,19 @@ function renderPreview() {
 }
 
 function paintTrimPlayhead() {
-  const info = activeFile()?.info
-  if (!info?.duration) return
-  const ratio = Math.min(1, Math.max(0, ui.currentTime / info.duration))
+  const view = ui.clipView
+  if (!view?.duration) return
+  const ratio = Math.min(1, Math.max(0, (ui.currentTime - view.start) / view.duration))
   const trimPlayhead = $('#trim-playhead')
   if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
+}
+
+function clipView(file) {
+  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : ensureClips(file)
+  if (!clips.length) return { start: 0, end: 0, duration: 0 }
+  const start = clips[0].start
+  const end = clips[clips.length - 1].end
+  return { start, end, duration: Math.max(0.001, end - start) }
 }
 
 function nearestClipTime(file, time) {
@@ -860,16 +873,19 @@ function renderTrimUI() {
   const info = file?.info
   if (!file || !info) {
     slot.innerHTML = ''
+    ui.clipView = { start: 0, end: 0, duration: 0 }
     return
   }
   const clips = ensureClips(file)
   const history = ensureClipHistory(file)
   const duration = Number(info.duration) || 0
+  const view = clipView(file)
+  ui.clipView = view
   const selectedIndex = Math.max(0, clips.findIndex((clip) => clip.id === file.selectedClipId))
   const selected = clips[selectedIndex] || clips[0]
   file.selectedClipId = selected.id
   const total = clips.reduce((sum, clip) => sum + (clip.end - clip.start), 0)
-  const pct = (value) => duration ? (value / duration) * 100 : 0
+  const pct = (value) => view.duration ? ((value - view.start) / view.duration) * 100 : 0
 
   const blocks = clips.map((clip, index) => {
     const left = pct(clip.start)
@@ -891,19 +907,19 @@ function renderTrimUI() {
     })
     .join('')
   const gaps = []
-  let gapCursor = 0
+  let gapCursor = view.start
   for (const clip of clips) {
     if (clip.start > gapCursor + 0.01) gaps.push({ start: gapCursor, end: clip.start })
     gapCursor = Math.max(gapCursor, clip.end)
   }
-  if (gapCursor < duration - 0.01) gaps.push({ start: gapCursor, end: duration })
+  if (gapCursor < view.end - 0.01) gaps.push({ start: gapCursor, end: view.end })
   const gapBlocks = gaps
     .map((gap) => {
       const left = pct(gap.start)
       return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
     })
     .join('')
-  const rulerHtml = timelineRulerHtml(duration)
+  const rulerHtml = timelineRulerHtml(view.duration)
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
@@ -966,7 +982,7 @@ function renderTrimUI() {
   const timeAt = (event) => {
     const rect = stage.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-    return nearestClipTime(file, ratio * duration)
+    return nearestClipTime(file, view.start + ratio * view.duration)
   }
   $('.clip-ruler')?.addEventListener('pointerdown', (event) => {
     if (!video) return
@@ -1833,7 +1849,8 @@ function bindEvents() {
         if (file?.info && video) {
           const rect = ($('#clip-stage') || timelineElement).getBoundingClientRect()
           const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-          const time = nearestClipTime(file, ratio * (Number(file.info.duration) || 0))
+          const view = clipView(file)
+          const time = nearestClipTime(file, view.start + ratio * view.duration)
           video.pause()
           video.currentTime = time
           ui.currentTime = time
@@ -1851,13 +1868,13 @@ function bindEvents() {
       const timeline = $('#clip-stage')
       const video = $('#preview-video')
       if (!file?.info || !timeline) return
-      const duration = Number(file.info.duration) || 0
+      const view = clipView(file)
       event.preventDefault()
       video?.pause()
       const timeAt = (pointerEvent) => {
         const rect = timeline.getBoundingClientRect()
         const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
-        return nearestClipTime(file, ratio * duration)
+        return nearestClipTime(file, view.start + ratio * view.duration)
       }
       const move = (pointerEvent) => {
         const time = timeAt(pointerEvent)
@@ -1885,6 +1902,7 @@ function bindEvents() {
     if (!clip) return
     const index = clips.indexOf(clip)
     const duration = Number(file.info.duration) || 0
+    const view = clipView(file)
     const which = handle.dataset.clipHandle
     const prevEnd = index > 0 ? clips[index - 1].end : 0
     const nextStart = index < clips.length - 1 ? clips[index + 1].start : duration
@@ -1895,7 +1913,7 @@ function bindEvents() {
     const timeAt = (pointerEvent) => {
       const rect = timeline.getBoundingClientRect()
       const ratio = Math.min(1, Math.max(0, (pointerEvent.clientX - rect.left) / rect.width))
-      return ratio * duration
+      return view.start + ratio * view.duration
     }
     const tipPosition = () => Math.min(94, Math.max(6, duration ? ((which === 'start' ? clip.start : clip.end) / duration) * 100 : 50))
     const tip = $('#clip-trim-tip')
