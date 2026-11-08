@@ -681,6 +681,7 @@ function renderPreview() {
     controlPlay.innerHTML = ui.playing ? icon('pause', 15) : icon('play', 15)
     $('#preview-engine-text').textContent = ui.playing ? '正在播放' : '预览就绪'
     $('#preview-engine-chip').classList.toggle('is-live', ui.playing)
+    updateClipPreviewButton()
   }
   const togglePlay = async () => {
     try {
@@ -836,6 +837,15 @@ function renderPreview() {
   paintPlay()
   syncPreviewAudio()
   paintTrimPlayhead()
+}
+
+function updateClipPreviewButton() {
+  const button = $('[data-clip-action="preview"]')
+  if (!button) return
+  const video = $('#preview-video')
+  const playing = Boolean(video && !video.paused && !video.ended)
+  button.innerHTML = `${icon(playing ? 'pause' : 'play', 11)} ${playing ? '暂停预览' : '预览成片'}`
+  button.setAttribute('aria-label', playing ? '暂停预览' : '预览成片')
 }
 
 function paintTrimPlayhead() {
@@ -1160,6 +1170,7 @@ function renderTrimUI() {
   hydrateIcons(slot)
   paintTrimPlayhead()
   paintOutputTimeline(file)
+  updateClipPreviewButton()
 
   const timeline = $('#clip-timeline')
   const stage = $('#clip-stage')
@@ -1248,10 +1259,17 @@ function handleClipAction(action) {
 
   if (action === 'preview') {
     if (!video) return
-    video.pause()
-    video.currentTime = selected.start
-    ui.currentTime = selected.start
-    paintTrimPlayhead()
+    if (!video.paused) {
+      video.pause()
+      return
+    }
+    const current = video.currentTime
+    const insideSelected = current >= selected.start + 0.01 && current < selected.end - 0.05
+    if (!insideSelected) {
+      video.currentTime = selected.start
+      ui.currentTime = selected.start
+      paintTrimPlayhead()
+    }
     video.play().catch(() => {})
     return
   }
