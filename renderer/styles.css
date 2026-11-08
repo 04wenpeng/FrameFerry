@@ -4795,3 +4795,27 @@ input:focus-visible {
   right: auto;
   transform: translate(-50%, -50%);
 }
+
+/* Output timeline: each clip carries its own cropped filmstrip. */
+
+.clip-block,
+.clip-block.is-selected {
+  overflow: hidden;
+}
+
+.clip-block-media {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
+  opacity: 0.97;
+  filter: saturate(1.04) brightness(1.06);
+  pointer-events: none;
+}
+
+.clip-block-index,
+.clip-block-duration {
+  z-index: 1;
+}
