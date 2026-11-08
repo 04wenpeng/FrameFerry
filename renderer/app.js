@@ -256,7 +256,10 @@ const FORMAT_META = {
   webm: { label: 'WebM', note: '网页播放' },
   avi: { label: 'AVI', note: '老设备兼容' },
   ts: { label: 'TS', note: '流媒体录制' },
+  m2ts: { label: 'M2TS', note: '蓝光 / 摄像机' },
   flv: { label: 'FLV', note: '旧网页平台' },
+  f4v: { label: 'F4V', note: 'Flash 网页' },
+  '3gp': { label: '3GP', note: '手机兼容' },
   gif: { label: 'GIF', note: '无声动图' }
 }
 const FORMAT_CODECS = {
@@ -267,7 +270,10 @@ const FORMAT_CODECS = {
   webm: ['vp9'],
   avi: ['h264'],
   ts: ['h264', 'h265'],
+  m2ts: ['h264', 'h265'],
   flv: ['h264'],
+  f4v: ['h264'],
+  '3gp': ['h264'],
   gif: ['gif']
 }
 const CODEC_LABEL = {
@@ -1430,7 +1436,7 @@ function renderSettings() {
 
     <div class="settings-group">
       <div class="group-head"><span class="group-index">02</span><span>容器格式</span><span class="group-hint">${FORMAT_META[settings.format].note}</span></div>
-      <div class="format-row">${['mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'ts', 'flv', 'gif'].map(formatChip).join('')}</div>
+      <div class="format-row">${['mp4', 'm4v', 'mov', 'mkv', 'webm', 'f4v', '3gp', 'avi', 'ts', 'm2ts', 'flv', 'gif'].map(formatChip).join('')}</div>
     </div>
 
     <div class="settings-row">
@@ -1753,7 +1759,7 @@ function updateSettings(patch, options = {}) {
     next.faststart = true
     next.audioCodec = 'aac'
   }
-  if (patch.format === 'avi' || patch.format === 'ts' || patch.format === 'flv') {
+  if (patch.format === 'avi' || patch.format === 'ts' || patch.format === 'm2ts' || patch.format === 'flv' || patch.format === 'f4v' || patch.format === '3gp') {
     next.faststart = false
     next.audioCodec = 'aac'
   }
@@ -1764,7 +1770,7 @@ function updateSettings(patch, options = {}) {
   if (patch.format && patch.format !== 'gif' && previousFormat === 'gif') {
     next.audio = true
   }
-  if (next.format === 'mp4' || next.format === 'mov' || next.format === 'm4v' || next.format === 'avi' || next.format === 'ts' || next.format === 'flv') next.audioCodec = 'aac'
+  if (next.format === 'mp4' || next.format === 'mov' || next.format === 'm4v' || next.format === 'avi' || next.format === 'ts' || next.format === 'm2ts' || next.format === 'flv' || next.format === 'f4v' || next.format === '3gp') next.audioCodec = 'aac'
   if (next.format === 'webm') next.audioCodec = 'opus'
   const file = activeFile()
   if (file && next.format !== previousFormat) {

@@ -12,7 +12,10 @@ const FORMAT_CODECS = {
   webm: ['vp9'],
   avi: ['h264'],
   ts: ['h264', 'h265'],
+  m2ts: ['h264', 'h265'],
   flv: ['h264'],
+  f4v: ['h264'],
+  '3gp': ['h264'],
   gif: ['gif']
 }
 
