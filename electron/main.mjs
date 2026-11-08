@@ -540,8 +540,23 @@ ipcMain.handle('history:clear', async () => {
   return true
 })
 
-ipcMain.handle('shell:show-item', (_event, filePath) => {
-  if (filePath) shell.showItemInFolder(filePath)
+ipcMain.handle('shell:show-item', async (_event, filePath) => {
+  if (!filePath) return
+  try {
+    const info = await stat(filePath)
+    if (info.isDirectory()) {
+      await shell.openPath(filePath)
+      return
+    }
+    shell.showItemInFolder(filePath)
+    return
+  } catch {}
+  // The output file may not exist yet (planned path); open its folder instead.
+  const directory = path.dirname(filePath)
+  try {
+    await mkdir(directory, { recursive: true })
+    await shell.openPath(directory)
+  } catch {}
 })
 
 ipcMain.handle('shell:open', async (_event, target) => {
