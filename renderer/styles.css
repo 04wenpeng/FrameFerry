@@ -4858,8 +4858,8 @@ input:focus-visible {
 }
 
 .output-name-line:focus-within {
-  border-color: var(--accent-line);
-  background: rgba(255, 96, 56, 0.045);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .output-name-edit-icon {
@@ -4872,7 +4872,7 @@ input:focus-visible {
 
 .output-name-line:hover .output-name-edit-icon,
 .output-name-line:focus-within .output-name-edit-icon {
-  color: var(--muted);
+  color: var(--dim);
 }
 
 .output-name-input {
@@ -4880,7 +4880,8 @@ input:focus-visible {
   min-width: 0;
   padding: 0;
   border: 0;
-  outline: 0;
+  outline: 0 !important;
+  box-shadow: none;
   background: transparent;
   color: var(--text-soft);
   font-family: var(--mono);
