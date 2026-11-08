@@ -1673,7 +1673,6 @@ function renderTitleMeta() {
   const running = state.jobs.find((job) => job.status === 'running')
   $('#menu-job-status').textContent = running ? `正在处理 ${running.sourceName}` : '当前没有进行中的任务'
   $('#menu-job-dot').classList.toggle('is-busy', Boolean(running))
-  $('#menu-history-count').textContent = String(state.history.length)
   const historyBadge = $('#history-badge')
   if (historyBadge) {
     historyBadge.hidden = state.historyUnread <= 0
