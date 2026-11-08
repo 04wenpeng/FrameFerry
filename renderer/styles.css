@@ -4454,3 +4454,28 @@ input:focus-visible {
   background: #171b21;
   color: #f1f1eb;
 }
+
+/* ---------- Unified preview header controls ---------- */
+
+.preview-head-actions .engine-chip,
+.preview-head-actions .ghost-button {
+  height: 30px;
+  padding: 0 11px;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.preview-head-actions .engine-chip {
+  border-radius: 15px;
+}
+
+.preview-head-actions .engine-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.preview-head-actions .ghost-button svg {
+  width: 13px;
+  height: 13px;
+}
