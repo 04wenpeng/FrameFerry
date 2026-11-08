@@ -746,11 +746,8 @@ function paintTrimPlayhead() {
 }
 
 function clipView(file) {
-  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : ensureClips(file)
-  if (!clips.length) return { start: 0, end: 0, duration: 0 }
-  const start = clips[0].start
-  const end = clips[clips.length - 1].end
-  return { start, end, duration: Math.max(0.001, end - start) }
+  const duration = Number(file?.info?.duration) || 0
+  return { start: 0, end: duration, duration }
 }
 
 function nearestClipTime(file, time) {
@@ -840,28 +837,29 @@ function redoClip() {
   restoreClipState(file, state)
 }
 
-function timelineRulerHtml(duration) {
+function timelineRulerHtml(duration, offset = 0) {
   if (!(duration > 0)) return ''
-  const target = duration / 6
+  const span = Math.max(0.001, duration - offset)
+  const target = span / 6
   const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
   const major = steps.find((step) => step >= target) || Math.ceil(target / 600) * 600
   const minor = major / 4
   const ticks = []
   const labels = []
-  const count = Math.ceil(duration / minor)
+  const count = Math.ceil(span / minor)
   for (let index = 0; index <= count; index += 1) {
-    const time = index * minor
+    const time = offset + index * minor
     if (time > duration + 0.001) break
     const left = Math.min(100, (time / duration) * 100)
     const isMajor = index % 4 === 0
     ticks.push(`<span class="clip-ruler-tick ${isMajor ? 'is-major' : ''}" style="left:${left}%"></span>`)
     if (isMajor) {
-      labels.push(`<span class="clip-ruler-label ${time < 0.01 ? 'is-first' : ''}" style="left:${left}%">${formatClock(time)}</span>`)
+      labels.push(`<span class="clip-ruler-label ${index === 0 ? 'is-first' : ''}" style="left:${left}%">${formatClock(Math.round(time - offset))}</span>`)
     }
   }
-  const lastTick = count * minor
+  const lastTick = offset + count * minor
   if (duration - lastTick > minor * 0.2) {
-    labels.push(`<span class="clip-ruler-label is-last" style="left:100%">${formatClock(duration)}</span>`)
+    labels.push(`<span class="clip-ruler-label is-last" style="left:100%">${formatClock(Math.round(duration - offset))}</span>`)
   }
   return `<div class="clip-ruler" aria-hidden="true">${labels.join('')}${ticks.join('')}</div>`
 }
@@ -919,7 +917,7 @@ function renderTrimUI() {
       return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
     })
     .join('')
-  const rulerHtml = timelineRulerHtml(view.duration)
+  const rulerHtml = timelineRulerHtml(view.duration, clips[0]?.start || 0)
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
