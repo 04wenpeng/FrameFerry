@@ -2,14 +2,14 @@ import {
   app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell
 } from 'electron'
 import { createReadStream } from 'node:fs'
-import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { ConversionQueue } from './converter.mjs'
+import { ConversionQueue, buildArguments } from './converter.mjs'
 import { extOf, fileStem } from './format.mjs'
 import { mimeFor, probeMedia } from './probe.mjs'
-import { readToolsInfo } from './tools.mjs'
+import { readToolsInfo, spawnFfmpeg } from './tools.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v', 'mpg', 'mpeg', 'ts', 'mts', 'gif'])
@@ -39,6 +39,8 @@ let historyPath = ''
 let settingsPath = ''
 let preferences = { defaultOutputDir: '' }
 let thumbnailCacheDir = ''
+let qualityPreviewDir = ''
+let qualityPreviewProcess = null
 const probeCache = new Map()
 let conversionQueue = null
 let jobsBroadcastTimer = null
@@ -148,7 +150,10 @@ async function initializeServices() {
   historyPath = path.join(app.getPath('userData'), 'history.json')
   settingsPath = path.join(app.getPath('userData'), 'settings.json')
   thumbnailCacheDir = path.join(app.getPath('userData'), 'thumb-cache')
+  qualityPreviewDir = path.join(app.getPath('userData'), 'quality-preview')
   await mkdir(thumbnailCacheDir, { recursive: true })
+  await rm(qualityPreviewDir, { recursive: true, force: true })
+  await mkdir(qualityPreviewDir, { recursive: true })
   await Promise.all([loadHistory(), loadPreferences()])
   bootstrapCache = await readToolsInfo()
   conversionQueue = new ConversionQueue({
@@ -298,6 +303,8 @@ app.on('second-instance', (_event, argv) => {
 
 app.on('before-quit', () => {
   conversionQueue?.shutdown()
+  qualityPreviewProcess?.kill()
+  qualityPreviewProcess = null
 })
 
 app.on('window-all-closed', () => {
@@ -405,6 +412,81 @@ ipcMain.handle('media:probe', async (_event, filePath) => {
 ipcMain.handle('media:url', (_event, filePath) => {
   if (!filePath) return ''
   return `frameflow://media/?path=${encodeURIComponent(String(filePath))}`
+})
+
+ipcMain.handle('preview:quality', async (_event, payload = {}) => {
+  const sourcePath = String(payload.sourcePath || '')
+  if (!sourcePath) throw new Error('缺少源文件')
+  const sourceInfo = await stat(sourcePath).catch(() => null)
+  if (!sourceInfo?.isFile()) throw new Error('源文件不可用')
+  const sourceDuration = Math.max(0, Number(payload.duration) || 0)
+  if (!sourceDuration) throw new Error('无法确定视频时长')
+  const sampleDuration = Math.min(3, Math.max(0.6, Number(payload.length) || 3), sourceDuration)
+  const start = Math.min(
+    Math.max(0, Number(payload.start) || 0),
+    Math.max(0, sourceDuration - sampleDuration)
+  )
+  const quality = Math.min(30, Math.max(16, Number(payload.quality) || 21))
+  const useHardware = payload.hardware !== false && Boolean(bootstrapCache?.hardware?.encoder)
+  const outputPath = path.join(
+    qualityPreviewDir,
+    `preview-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`
+  )
+  const settings = {
+    format: 'mp4',
+    videoCodec: 'h264',
+    quality,
+    resolution: payload.resolution || 'source',
+    fps: payload.fps || 'source',
+    audio: false,
+    faststart: true,
+    hardware: useHardware,
+    clips: [{ start, end: start + sampleDuration }]
+  }
+  const meta = {
+    duration: sourceDuration,
+    hasAudio: false,
+    hardware: bootstrapCache?.hardware || null
+  }
+  const args = buildArguments({
+    sourcePath,
+    outputPath,
+    settings,
+    meta,
+    useHardware
+  })
+
+  qualityPreviewProcess?.kill()
+  const child = spawnFfmpeg(args)
+  qualityPreviewProcess = child
+  let stderr = ''
+  child.stderr?.on('data', (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-5000)
+  })
+  try {
+    await new Promise((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', (code, signal) => {
+        if (qualityPreviewProcess === child) qualityPreviewProcess = null
+        if (code === 0) {
+          resolve()
+        } else {
+          const detail = stderr.trim().split(/\r?\n/).slice(-3).join(' ')
+          reject(new Error(detail || `预览编码失败（${signal || code}）`))
+        }
+      })
+    })
+    return { path: outputPath, duration: sampleDuration, start }
+  } catch (error) {
+    await rm(outputPath, { force: true }).catch(() => {})
+    throw error
+  }
+})
+
+ipcMain.handle('preview:quality-cancel', () => {
+  qualityPreviewProcess?.kill()
+  qualityPreviewProcess = null
+  return true
 })
 
 ipcMain.handle('media:default-output', (_event, payload = {}) => {

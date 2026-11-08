@@ -254,7 +254,13 @@ const ui = {
   muted: false,
   videoUrl: '',
   previewToken: 0,
-  addCounter: 0
+  addCounter: 0,
+  qualityPreview: {
+    open: false,
+    loading: false,
+    token: 0,
+    timer: null
+  }
 }
 
 function makeId() {
@@ -368,6 +374,117 @@ function syncPreviewAudio() {
   mute.setAttribute('aria-pressed', String(video.muted))
 }
 
+function qualityPreviewLabel() {
+  const resolution = state.settings.resolution === 'source'
+    ? '原始分辨率'
+    : `${state.settings.resolution}p`
+  const fps = state.settings.fps === 'source' ? '' : ` · ${state.settings.fps}fps`
+  return `H.264 · CRF ${state.settings.quality} · ${resolution}${fps}`
+}
+
+function closeQualityPreview() {
+  const preview = ui.qualityPreview
+  preview.open = false
+  preview.loading = false
+  preview.token += 1
+  if (preview.timer) {
+    clearTimeout(preview.timer)
+    preview.timer = null
+  }
+  const overlay = $('#quality-preview')
+  if (overlay) overlay.hidden = true
+  const video = $('#quality-preview-video')
+  if (video) {
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
+  }
+  void api.cancelQualityPreview?.().catch(() => {})
+}
+
+function scheduleQualityPreview(delay = 650) {
+  const preview = ui.qualityPreview
+  if (!preview.open) return
+  if (preview.timer) clearTimeout(preview.timer)
+  preview.timer = setTimeout(() => {
+    preview.timer = null
+    if (preview.open) void generateQualityPreview()
+  }, delay)
+}
+
+async function generateQualityPreview() {
+  const preview = ui.qualityPreview
+  const file = activeFile()
+  const info = file?.info
+  const overlay = $('#quality-preview')
+  const video = $('#quality-preview-video')
+  const loading = $('#quality-preview-loading')
+  const errorBox = $('#quality-preview-error')
+  if (!preview.open || !file || !info || !overlay || !video) return
+
+  const token = ++preview.token
+  const duration = Number(info.duration) || 0
+  if (duration <= 0) return
+  const length = Math.min(3, duration)
+  const start = Math.min(Math.max(0, ui.currentTime || 0), Math.max(0, duration - length))
+  const meta = qualityPreviewLabel()
+  preview.loading = true
+  video.pause()
+  if (loading) loading.hidden = false
+  if (errorBox) errorBox.hidden = true
+  const metaLabel = $('#quality-preview-meta')
+  if (metaLabel) metaLabel.textContent = `${meta} · ${length.toFixed(1)}s · 无声`
+  const loadingText = $('#quality-preview-loading-text')
+  if (loadingText) loadingText.textContent = `正在按 CRF ${state.settings.quality} 编码 ${length.toFixed(1)} 秒…`
+
+  try {
+    const result = await api.renderQualityPreview({
+      sourcePath: file.path,
+      start,
+      length,
+      duration,
+      quality: state.settings.quality,
+      resolution: state.settings.resolution,
+      fps: state.settings.fps,
+      hardware: state.settings.hardware
+    })
+    if (!preview.open || token !== preview.token) return
+    const url = await api.getMediaUrl(result.path)
+    if (!preview.open || token !== preview.token) return
+    video.src = url
+    video.load()
+    if (loading) loading.hidden = true
+    preview.loading = false
+    video.play().catch(() => {})
+  } catch (error) {
+    if (!preview.open || token !== preview.token) return
+    preview.loading = false
+    if (loading) loading.hidden = true
+    if (errorBox) {
+      errorBox.hidden = false
+      errorBox.textContent = `预览生成失败：${errorMessage(error)}`
+    }
+  }
+}
+
+function openQualityPreview() {
+  const file = activeFile()
+  if (!file?.info) {
+    showToast('info', '先添加一个视频', '载入素材后才能生成压缩预览')
+    return
+  }
+  if (state.settings.format === 'gif' || state.settings.videoCodec === 'prores') {
+    showToast('info', '当前格式没有 CRF 预览', 'GIF 和 ProRes 不使用这个质量参数')
+    return
+  }
+  const overlay = $('#quality-preview')
+  if (!overlay) return
+  $('#preview-video')?.pause()
+  ui.qualityPreview.open = true
+  overlay.hidden = false
+  void generateQualityPreview()
+}
+
 function previewSkeletonHtml() {
   return `<div class="video-stage"><div class="stage-loading"><span></span></div></div>
     <div class="filmstrip-shell"><div class="filmstrip-label"><span>关键帧</span><span>解析中</span></div><div class="filmstrip"><div class="filmstrip-placeholder"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
@@ -376,6 +493,7 @@ function previewSkeletonHtml() {
 
 function renderPreview() {
   const body = $('#preview-body')
+  if (ui.qualityPreview.open) closeQualityPreview()
   const file = activeFile()
   ui.previewToken += 1
   const token = ui.previewToken
@@ -427,6 +545,28 @@ function renderPreview() {
           <button class="stage-edit-pill" id="stage-edit" title="剪辑片段">${icon('scissors', 13)}<span id="stage-edit-label">剪辑</span></button>
           <button class="stage-control" id="control-mute" aria-label="静音">${icon('volume', 15)}</button>
           <button class="stage-control" id="control-fullscreen" aria-label="全屏">${icon('maximize', 14)}</button>
+        </div>
+      </div>
+      <div class="quality-preview" id="quality-preview" hidden>
+        <div class="quality-preview-bar">
+          <div class="quality-preview-title">
+            <span class="eyebrow">ENCODE PREVIEW</span>
+            <strong>真实压缩预览</strong>
+          </div>
+          <span class="quality-preview-meta" id="quality-preview-meta"></span>
+          <div class="quality-preview-actions">
+            <button class="qp-button" data-quality-preview-action="refresh">${icon('rotate', 12)} 重新生成</button>
+            <button class="qp-button is-close" data-quality-preview-action="close">${icon('x', 12)} 返回原片</button>
+          </div>
+        </div>
+        <div class="quality-preview-body">
+          <video id="quality-preview-video" playsinline controls loop></video>
+          <div class="quality-preview-loading" id="quality-preview-loading">
+            <span class="qp-spinner"></span>
+            <strong id="quality-preview-loading-text">正在按当前设置编码 3 秒…</strong>
+            <span>预览无声，只看画质</span>
+          </div>
+          <div class="quality-preview-error" id="quality-preview-error" hidden></div>
         </div>
       </div>
     </div>
@@ -925,6 +1065,7 @@ function renderSettings() {
         style="background:linear-gradient(90deg,var(--accent) 0%,var(--accent) ${qualityPercent}%,rgba(255,255,255,.16) ${qualityPercent}%)">
       <div class="quality-scale"><span>更小体积</span><span>更佳画质</span></div>
       <div class="quality-note" id="quality-note">${icon('sparkles', 12)}${settings.quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : settings.quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'}</div>
+      <button class="quality-preview-trigger" data-action="quality-preview">${icon('play', 11)} 预览真实压缩效果</button>
     </div>` : `<div class="quality-note prores-note">${icon('sparkles', 12)}ProRes 422 HQ 固定高质量中间编码，面向剪辑软件</div>`}
 
     <div class="settings-row compact">
@@ -1232,6 +1373,13 @@ function updateSettings(patch, options = {}) {
   if (!options.skipRender) renderSettings()
   renderTitleMeta()
   syncPreviewAudio()
+  if (ui.qualityPreview.open) {
+    if (next.format === 'gif' || next.videoCodec === 'prores') {
+      closeQualityPreview()
+    } else if (Object.keys(patch).some((key) => ['format', 'videoCodec', 'resolution', 'fps', 'hardware'].includes(key))) {
+      scheduleQualityPreview(350)
+    }
+  }
 }
 
 function applyPreset(id) {
@@ -1252,6 +1400,10 @@ function applyPreset(id) {
       : preferredOutputPath(file.path, state.settings.format)
   }
   renderSettings()
+  if (ui.qualityPreview.open) {
+    if (state.settings.format === 'gif' || state.settings.videoCodec === 'prores') closeQualityPreview()
+    else scheduleQualityPreview(200)
+  }
 }
 
 async function chooseOutput() {
@@ -1472,6 +1624,7 @@ function bindEvents() {
     const file = activeFile()
     if (!file?.info) return
     state.trimMode = !state.trimMode
+    if (state.trimMode) closeQualityPreview()
     const clips = ensureClips(file)
     if (state.trimMode) {
       const video = $('#preview-video')
@@ -1543,6 +1696,12 @@ function bindEvents() {
   })
 
   $('#preview-body').addEventListener('click', (event) => {
+    const qualityAction = event.target.closest('[data-quality-preview-action]')?.dataset.qualityPreviewAction
+    if (qualityAction === 'close') { closeQualityPreview(); return }
+    if (qualityAction === 'refresh') {
+      if (ui.qualityPreview.open) void generateQualityPreview()
+      return
+    }
     const button = event.target.closest('[data-clip-action]')
     if (!button || button.disabled) return
     handleClipAction(button.dataset.clipAction)
@@ -1692,6 +1851,7 @@ function bindEvents() {
     if (action === 'choose-output') { void chooseOutput(); return }
     if (action === 'choose-default-output') { void chooseDefaultOutput(); return }
     if (action === 'clear-default-output') { void clearDefaultOutput(); return }
+    if (action === 'quality-preview') { openQualityPreview(); return }
     if (action === 'start') { void startConversion(); return }
     if (action === 'show-output') {
       if (state.outputPath) void api.showItemInFolder(state.outputPath)
@@ -1725,6 +1885,7 @@ function bindEvents() {
     if (activeInfo()) $('#estimate-value').textContent = `约 ${formatBytes(estimate)}`
     const note = quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'
     $('#quality-note').innerHTML = `${icon('sparkles', 12)}${note}`
+    if (ui.qualityPreview.open) scheduleQualityPreview(500)
   })
   $('#settings-root').addEventListener('change', (event) => {
     if (event.target.id === 'quality-slider') renderSettings()
@@ -1786,7 +1947,18 @@ function bindEvents() {
   // keyboard
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (ui.qualityPreview.open) { closeQualityPreview(); return }
       closeMenus(); closeModal(); return
+    }
+    if (ui.qualityPreview.open && event.code === 'Space') {
+      const target = event.target
+      if (target.closest('input, select, textarea, button, [contenteditable="true"]')) return
+      event.preventDefault()
+      const qualityVideo = $('#quality-preview-video')
+      if (!qualityVideo) return
+      if (qualityVideo.paused) void qualityVideo.play().catch(() => {})
+      else qualityVideo.pause()
+      return
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
       event.preventDefault(); void openFilesDialog(); return

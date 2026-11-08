@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('frameferry', {
   getMediaUrl: (filePath) => ipcRenderer.invoke('media:url', filePath),
   getDefaultOutput: (sourcePath, format) =>
     ipcRenderer.invoke('media:default-output', { sourcePath, format }),
+  renderQualityPreview: (payload) => ipcRenderer.invoke('preview:quality', payload),
+  cancelQualityPreview: () => ipcRenderer.invoke('preview:quality-cancel'),
 
   startConversion: (payload) => ipcRenderer.invoke('jobs:start', payload),
   listJobs: () => ipcRenderer.invoke('jobs:list'),
