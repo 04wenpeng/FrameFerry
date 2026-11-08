@@ -742,10 +742,12 @@ function paintTrimPlayhead() {
   if (!view?.duration) return
   const trimPlayhead = $('#trim-playhead')
   if (!trimPlayhead) return
-  const outside = ui.currentTime < view.start - 0.001 || ui.currentTime > view.end + 0.001
+  const file = activeFile()
+  const displayTime = file ? nearestClipTime(file, ui.currentTime) : ui.currentTime
+  const outside = displayTime < view.start - 0.001 || displayTime > view.end + 0.001
   trimPlayhead.style.display = outside ? 'none' : ''
   if (outside) return
-  const ratio = Math.min(1, Math.max(0, (ui.currentTime - view.start) / view.duration))
+  const ratio = Math.min(1, Math.max(0, (displayTime - view.start) / view.duration))
   trimPlayhead.style.left = `${ratio * 100}%`
 }
 
