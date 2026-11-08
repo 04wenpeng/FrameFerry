@@ -916,11 +916,12 @@ function renderSettings() {
     </div>` : !isProres ? `
     <div class="settings-group quality-group">
       <div class="quality-head">
-        <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低越清晰</span></div>
+        <div class="field-label"><span>恒定质量</span><span class="field-hint">数值越低越清晰 · 仅影响导出</span></div>
         <span class="quality-value" id="quality-value">CRF ${settings.quality}</span>
       </div>
       <input class="quality-slider" id="quality-slider" type="range" min="16" max="30" step="1" value="${qualitySliderValue}"
-        aria-label="视频质量：向右更好画质，向左更小体积"
+        title="CRF 只影响导出文件，预览保持原始画面"
+        aria-label="视频质量：向右更好画质，向左更小体积；仅影响导出文件"
         style="background:linear-gradient(90deg,var(--accent) 0%,var(--accent) ${qualityPercent}%,rgba(255,255,255,.16) ${qualityPercent}%)">
       <div class="quality-scale"><span>更小体积</span><span>更佳画质</span></div>
       <div class="quality-note" id="quality-note">${icon('sparkles', 12)}${settings.quality <= 18 ? '接近视觉无损，适合归档与二次剪辑' : settings.quality <= 22 ? '画质与体积的平衡点，日常分享推荐' : '优先压缩体积，适合即时通讯与网页'}</div>
