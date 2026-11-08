@@ -706,8 +706,27 @@ function renderPreview() {
     paintTrimPlayhead()
   }
 
-  video.addEventListener('play', () => { ui.playing = true; paintPlay() })
-  video.addEventListener('pause', () => { ui.playing = false; paintPlay() })
+  let frameId = 0
+  const stopFrameLoop = () => {
+    if (frameId) cancelAnimationFrame(frameId)
+    frameId = 0
+  }
+  const frameLoop = () => {
+    if (!video || !video.isConnected || video.paused || video.ended) {
+      frameId = 0
+      return
+    }
+    ui.currentTime = video.currentTime
+    paintTimeline()
+    paintTrimPlayhead()
+    frameId = requestAnimationFrame(frameLoop)
+  }
+  const startFrameLoop = () => {
+    stopFrameLoop()
+    frameId = requestAnimationFrame(frameLoop)
+  }
+  video.addEventListener('play', () => { ui.playing = true; paintPlay(); startFrameLoop() })
+  video.addEventListener('pause', () => { ui.playing = false; stopFrameLoop(); paintPlay() })
   video.addEventListener('timeupdate', () => {
     ui.currentTime = video.currentTime
     const clips = ensureClips(file)
@@ -753,7 +772,7 @@ function renderPreview() {
     paintTimeline()
     paintTrimPlayhead()
   })
-  video.addEventListener('ended', () => { ui.playing = false; paintPlay() })
+  video.addEventListener('ended', () => { ui.playing = false; stopFrameLoop(); paintPlay() })
   central.addEventListener('click', togglePlay)
   controlPlay.addEventListener('click', togglePlay)
   timeline.addEventListener('input', (event) => {
