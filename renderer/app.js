@@ -707,6 +707,38 @@ function renderPreview() {
   }
 
   let frameId = 0
+  const keepPlaybackInClips = () => {
+    if (!video || video.paused || video.seeking) return null
+    const clips = Array.isArray(file.clips) && file.clips.length ? file.clips : ensureClips(file)
+    if (!clips.length) return null
+    const time = video.currentTime
+    const index = clips.findIndex((clip) => time >= clip.start - 0.02 && time <= clip.end + 0.02)
+    if (index >= 0) {
+      const clip = clips[index]
+      if (time < clip.end - 0.02) return null
+      const next = clips[index + 1]
+      if (next) {
+        try { video.currentTime = next.start } catch {}
+        ui.currentTime = next.start
+        return next.start
+      }
+      video.pause()
+      try { video.currentTime = clip.end } catch {}
+      ui.currentTime = clip.end
+      return clip.end
+    }
+    const next = clips.find((clip) => clip.start > time - 0.01)
+    if (next) {
+      try { video.currentTime = next.start } catch {}
+      ui.currentTime = next.start
+      return next.start
+    }
+    const last = clips[clips.length - 1]
+    video.pause()
+    try { video.currentTime = last.end } catch {}
+    ui.currentTime = last.end
+    return last.end
+  }
   const stopFrameLoop = () => {
     if (frameId) cancelAnimationFrame(frameId)
     frameId = 0
@@ -716,7 +748,8 @@ function renderPreview() {
       frameId = 0
       return
     }
-    ui.currentTime = video.currentTime
+    const cutTime = keepPlaybackInClips()
+    ui.currentTime = cutTime ?? video.currentTime
     paintTimeline()
     paintTrimPlayhead()
     frameId = requestAnimationFrame(frameLoop)
