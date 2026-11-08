@@ -12,7 +12,7 @@ import { mimeFor, probeMedia } from './probe.mjs'
 import { readToolsInfo, spawnFfmpeg } from './tools.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v', 'mpg', 'mpeg', 'ts', 'mts', 'gif'])
+const VIDEO_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'mkv', 'webm', 'f4v', '3gp', 'avi', 'ts', 'm2ts', 'mts', 'flv', 'mpg', 'mpeg', 'gif'])
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -359,7 +359,7 @@ ipcMain.handle('dialog:open-media', async () => {
     buttonLabel: '添加',
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: '视频文件', extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v', 'mpg', 'mpeg', 'ts', 'mts', 'gif'] },
+      { name: '视频文件', extensions: ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'f4v', '3gp', 'avi', 'ts', 'm2ts', 'mts', 'flv', 'mpg', 'mpeg', 'gif'] },
       { name: '所有文件', extensions: ['*'] }
     ]
   })
