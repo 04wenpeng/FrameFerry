@@ -4828,32 +4828,51 @@ input:focus-visible {
 .output-name-line {
   display: flex;
   align-items: center;
+  gap: 5px;
+  height: 26px;
   min-width: 0;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.output-name-line:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.output-name-line:focus-within {
+  border-color: var(--accent);
+  background: rgba(255, 96, 56, 0.08);
+}
+
+.output-name-edit-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--accent);
 }
 
 .output-name-input {
   flex: 1;
   min-width: 0;
-  padding: 0 0 1px;
+  padding: 0;
   border: 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
   outline: 0;
   background: transparent;
   color: var(--text-soft);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.3;
+  cursor: text;
 }
 
-.output-name-input:hover {
-  color: var(--text);
-}
-
+.output-name-input:hover,
 .output-name-input:focus {
   color: var(--text);
-  border-bottom-color: var(--accent);
-  box-shadow: 0 1px 0 var(--accent);
 }
 
 .output-name-input:disabled {

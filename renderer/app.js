@@ -6,6 +6,7 @@ const ICONS = {
   folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   play: '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>',
@@ -1568,6 +1569,7 @@ function renderSettings() {
         <div class="output-icon">${icon('hardDrive', 15)}</div>
         <div class="output-copy">
           <div class="output-name-line">
+            <span class="output-name-edit-icon">${icon('edit', 11)}</span>
             <input class="output-name-input" id="output-name-input" value="${escapeHtml(outputStem)}" placeholder="输出文件名" spellcheck="false" aria-label="输出文件名" title="点击修改输出文件名" ${!file || !outputPath ? 'disabled' : ''}>
             <span class="output-name-ext">.${escapeHtml(settings.format)}</span>
           </div>
