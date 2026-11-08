@@ -3231,15 +3231,18 @@ input:focus-visible {
 }
 
 .format-chip {
-  height: 46px;
+  height: 52px;
+  gap: 3px;
 }
 
 .format-chip span {
-  font-size: 11.5px;
+  font-size: 13.5px;
+  line-height: 1.1;
 }
 
 .format-chip small {
-  font-size: 9px;
+  font-size: 10.5px;
+  line-height: 1.1;
 }
 
 .field-label {
