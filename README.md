@@ -8,6 +8,8 @@
 
 **GitHub 仓库：** https://github.com/04wenpeng/FrameFerry
 
+**下载 Windows 安装版：** [GitHub Releases](https://github.com/04wenpeng/FrameFerry/releases/latest)
+
 ## 运行
 
 ### 从源码运行
@@ -28,7 +30,7 @@ pnpm start
 
 ### 安装版
 
-本地构建的 Windows 安装程序会把完整程序安装到独立目录，包含 `FrameFerry.exe`、`resources`、DLL、`uninst.exe` 和桌面/开始菜单快捷方式。安装版不放进 Git 仓库，避免超过 GitHub 单文件限制。
+Windows 安装程序发布在 [Releases](https://github.com/04wenpeng/FrameFerry/releases/latest)，下载 `FrameFerry-Setup-1.8.36.exe` 后双击安装。安装后的目录包含 `FrameFerry.exe`、`resources`、DLL、`uninst.exe` 和桌面/开始菜单快捷方式。
 
 > 这是未签名的本地预览版。Windows SmartScreen 若拦截，请选择「更多信息 → 仍要运行」。应用不需要管理员权限，也不会联网。
 
