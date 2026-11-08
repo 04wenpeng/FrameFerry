@@ -119,6 +119,39 @@ function preferredOutputPath(sourcePath, format) {
   return outputPathFor(sourcePath, format, state.defaultOutputDir)
 }
 
+function sanitizeOutputStem(value, format) {
+  let name = String(value ?? '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim()
+  if (format && name.toLowerCase().endsWith(`.${format.toLowerCase()}`)) {
+    name = name.slice(0, -(format.length + 1)).replace(/[. ]+$/g, '').trim()
+  }
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) name = `_${name}`
+  return name.slice(0, 120)
+}
+
+function applyOutputStem(rawValue, finalize = false) {
+  const file = activeFile()
+  if (!file?.info) return
+  const format = state.settings.format
+  let stem = sanitizeOutputStem(rawValue, format)
+  if (!stem && !finalize) return
+  const fallback = `${fileNameOf(file.path).replace(/\.[^.]+$/, '') || 'output'}_converted`
+  if (!stem) stem = fallback
+  const base = state.outputPath || preferredOutputPath(file.path, format)
+  const directory = directoryOf(base) || directoryOf(file.path) || '.'
+  const separator = directory.includes('\\') ? '\\' : '/'
+  state.outputPath = `${directory.replace(/[\\/]+$/, '')}${separator}${stem}.${format}`
+  state.outputEdited = true
+  renderTitleMeta()
+  if (finalize) {
+    const input = $('#output-name-input')
+    if (input) input.value = stem
+    renderSettings()
+  }
+}
+
 function outputPathWithFormat(filePath, format) {
   const value = String(filePath || '')
   if (!value) return ''
@@ -1404,6 +1437,7 @@ function renderSettings() {
     ? (info ? `${Math.min(info.video.width, info.video.height)}p 原始` : '原始')
     : `${settings.resolution}p`
   const outputPath = state.outputPath
+  const outputStem = outputPath ? fileNameOf(outputPath).replace(/\.[^.]+$/, '') : ''
   const codecShort = (CODEC_LABEL[settings.videoCodec] || '').split(' ')[0]
   const hardwareText = settings.videoCodec === 'h264'
     ? (hardware && settings.hardware ? hardware.label : 'CPU · x264')
@@ -1532,7 +1566,13 @@ function renderSettings() {
       <div class="quality-head"><div class="field-label"><span>输出位置</span></div><button class="text-button" data-action="choose-output" ${!file ? 'disabled' : ''}>更改</button></div>
       <div class="output-path">
         <div class="output-icon">${icon('hardDrive', 15)}</div>
-        <div class="output-copy"><span class="output-name" title="${escapeHtml(outputPath)}">${outputPath ? escapeHtml(fileNameOf(outputPath)) : '选择素材后自动生成'}</span><span class="output-dir" title="${escapeHtml(outputPath)}">${outputPath ? escapeHtml(directoryOf(outputPath)) : '与源文件相同的目录'}</span></div>
+        <div class="output-copy">
+          <div class="output-name-line">
+            <input class="output-name-input" id="output-name-input" value="${escapeHtml(outputStem)}" placeholder="输出文件名" spellcheck="false" aria-label="输出文件名" title="点击修改输出文件名" ${!file || !outputPath ? 'disabled' : ''}>
+            <span class="output-name-ext">.${escapeHtml(settings.format)}</span>
+          </div>
+          <span class="output-dir" title="${escapeHtml(outputPath)}">${outputPath ? escapeHtml(directoryOf(outputPath)) : '与源文件相同的目录'}</span>
+        </div>
         <button class="output-folder" data-action="show-output" title="打开输出位置">${icon('folder', 14)}</button>
       </div>
       <div class="default-folder">
@@ -2362,6 +2402,10 @@ function bindEvents() {
   })
 
   $('#settings-root').addEventListener('change', (event) => {
+    if (event.target.id === 'output-name-input') {
+      applyOutputStem(event.target.value, true)
+      return
+    }
     const select = event.target.closest('[data-select]')
     if (!select) return
     const key = select.dataset.select
@@ -2374,6 +2418,10 @@ function bindEvents() {
   })
 
   $('#settings-root').addEventListener('input', (event) => {
+    if (event.target.id === 'output-name-input') {
+      applyOutputStem(event.target.value, false)
+      return
+    }
     const slider = event.target.closest('#quality-slider')
     if (!slider) return
     const sliderValue = Number(slider.value)
