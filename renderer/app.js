@@ -740,18 +740,47 @@ function renderPreview() {
 function paintTrimPlayhead() {
   const view = ui.clipView
   if (!view?.duration) return
-  const ratio = Math.min(1, Math.max(0, (ui.currentTime - view.start) / view.duration))
   const trimPlayhead = $('#trim-playhead')
-  if (trimPlayhead) trimPlayhead.style.left = `${ratio * 100}%`
+  if (!trimPlayhead) return
+  const outside = ui.currentTime < view.start - 0.001 || ui.currentTime > view.end + 0.001
+  trimPlayhead.style.display = outside ? 'none' : ''
+  if (outside) return
+  const ratio = Math.min(1, Math.max(0, (ui.currentTime - view.start) / view.duration))
+  trimPlayhead.style.left = `${ratio * 100}%`
+}
+
+function timelineExtent(file) {
+  const sourceDuration = Number(file?.info?.duration) || 0
+  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : []
+  const lastEnd = clips.length ? clips[clips.length - 1].end : sourceDuration
+  const tail = Math.max(1, lastEnd * 0.1)
+  return {
+    sourceDuration,
+    baseDuration: Math.max(0.001, sourceDuration, lastEnd + tail),
+    clipStart: clips.length ? clips[0].start : 0
+  }
 }
 
 function clipView(file) {
-  const duration = Number(file?.info?.duration) || 0
-  const clips = Array.isArray(file?.clips) && file.clips.length ? file.clips : []
-  const lastEnd = clips.length ? clips[clips.length - 1].end : duration
-  const tail = Math.max(1, lastEnd * 0.1)
-  const end = Math.max(duration, lastEnd + tail)
-  return { start: 0, end, duration: Math.max(0.001, end) }
+  const extent = timelineExtent(file)
+  if (!file) return { ...extent, start: 0, end: extent.baseDuration, duration: extent.baseDuration, zoom: 1 }
+  if (!file.timelineView || !Number.isFinite(file.timelineView.zoom)) {
+    file.timelineView = { zoom: 1, start: 0 }
+  }
+  const zoom = Math.min(20, Math.max(1, Number(file.timelineView.zoom) || 1))
+  const duration = extent.baseDuration / zoom
+  const start = Math.min(
+    Math.max(0, Number(file.timelineView.start) || 0),
+    Math.max(0, extent.baseDuration - duration)
+  )
+  file.timelineView = { zoom, start }
+  return {
+    ...extent,
+    zoom,
+    start,
+    end: start + duration,
+    duration
+  }
 }
 
 function nearestClipTime(file, time) {
@@ -841,29 +870,25 @@ function redoClip() {
   restoreClipState(file, state)
 }
 
-function timelineRulerHtml(duration, offset = 0) {
-  if (!(duration > 0)) return ''
-  const span = Math.max(0.001, duration - offset)
-  const target = span / 6
+function timelineRulerHtml(view, offset = 0) {
+  if (!(view.duration > 0)) return ''
+  const target = view.duration / 6
   const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
   const major = steps.find((step) => step >= target) || Math.ceil(target / 600) * 600
   const minor = major / 4
   const ticks = []
   const labels = []
-  const count = Math.ceil(span / minor)
-  for (let index = 0; index <= count; index += 1) {
+  const firstIndex = Math.ceil((view.start - offset) / minor - 0.0001)
+  for (let index = Math.max(0, firstIndex); index < 100000; index += 1) {
     const time = offset + index * minor
-    if (time > duration + 0.001) break
-    const left = Math.min(100, (time / duration) * 100)
+    if (time > view.end + 0.001) break
+    const left = ((time - view.start) / view.duration) * 100
+    if (left < -0.01 || left > 100.01) continue
     const isMajor = index % 4 === 0
     ticks.push(`<span class="clip-ruler-tick ${isMajor ? 'is-major' : ''}" style="left:${left}%"></span>`)
     if (isMajor) {
       labels.push(`<span class="clip-ruler-label ${index === 0 ? 'is-first' : ''}" style="left:${left}%">${formatClock(Math.round(time - offset))}</span>`)
     }
-  }
-  const lastTick = offset + count * minor
-  if (duration - lastTick > minor * 0.2) {
-    labels.push(`<span class="clip-ruler-label is-last" style="left:100%">${formatClock(Math.round(duration - offset))}</span>`)
   }
   return `<div class="clip-ruler" aria-hidden="true">${labels.join('')}${ticks.join('')}</div>`
 }
@@ -921,14 +946,16 @@ function renderTrimUI() {
       return `<span class="clip-gap" style="left:${left}%;width:${Math.max(0, pct(gap.end) - left)}%"></span>`
     })
     .join('')
-  const rulerHtml = timelineRulerHtml(view.duration, clips[0]?.start || 0)
+  const rulerHtml = timelineRulerHtml(view, clips[0]?.start || 0)
+  const filmLeft = view.duration ? -(view.start / view.duration) * 100 : 0
+  const filmWidth = view.duration ? (duration / view.duration) * 100 : 100
 
   slot.innerHTML = `<div class="trim-panel clip-editor">
     <div class="trim-head">
       <div class="trim-head-copy">
         <span class="eyebrow">SPLIT & TRIM</span>
         <span class="trim-head-title">分割与剪辑</span>
-        <span class="trim-head-hint">拖动白线定位，Ctrl+B 或双击白线分割；选中片段可拖两端或删除</span>
+        <span class="trim-head-hint">Ctrl+滚轮缩放 · Shift+滚轮平移；拖动白线定位，Ctrl+B 分割</span>
       </div>
       <div class="trim-toolbar">
         <button class="trim-history" data-clip-action="undo" title="撤销 (Ctrl+Z)" aria-label="撤销" ${history.undo.length ? '' : 'disabled'}>${icon('undo', 15)}</button>
@@ -943,10 +970,14 @@ function renderTrimUI() {
     ${rulerHtml}
     <div class="clip-timeline" id="clip-timeline">
       <div class="clip-stage" id="clip-stage">
-        ${info.filmstrip ? `<img class="trim-film" src="${info.filmstrip}" alt="">` : '<div class="trim-film trim-film-empty"></div>'}
-        ${gapBlocks}
-        ${blocks}
-        ${cutLines}
+        <div class="clip-content">
+          ${info.filmstrip
+            ? `<img class="trim-film" src="${info.filmstrip}" style="left:${filmLeft}%;width:${filmWidth}%;right:auto" alt="">`
+            : `<div class="trim-film trim-film-empty" style="left:${filmLeft}%;width:${filmWidth}%;right:auto"></div>`}
+          ${gapBlocks}
+          ${blocks}
+          ${cutLines}
+        </div>
         <div class="trim-playhead" id="trim-playhead">
           <button class="playhead-grip" id="playhead-grip" title="拖动白线定位；双击白线或 Ctrl+B 分割"></button>
         </div>
@@ -1757,6 +1788,42 @@ function bindEvents() {
     const file = activeFile()
     if (file) void api.openPath(file.path)
   })
+
+  $('#preview-body').addEventListener('wheel', (event) => {
+    const file = activeFile()
+    if (!file?.info) return
+    if (!event.target.closest('#clip-timeline, .clip-ruler')) return
+    if (!(event.ctrlKey || event.metaKey || event.shiftKey)) return
+    const stage = $('#clip-stage')
+    if (!stage) return
+    event.preventDefault()
+    const view = clipView(file)
+    const rect = stage.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    const direction = event.deltaY || event.deltaX || 0
+    if (event.ctrlKey || event.metaKey) {
+      const anchor = view.start + ratio * view.duration
+      const factor = direction < 0 ? 1.25 : 0.8
+      const zoom = Math.min(20, Math.max(1, view.zoom * factor))
+      const duration = view.baseDuration / zoom
+      const start = Math.min(
+        Math.max(0, anchor - ratio * duration),
+        Math.max(0, view.baseDuration - duration)
+      )
+      if (zoom === view.zoom && Math.abs(start - view.start) < 0.001) return
+      file.timelineView = { zoom, start }
+    } else {
+      const delta = (direction / 600) * view.duration
+      const start = Math.min(
+        Math.max(0, view.start + delta),
+        Math.max(0, view.baseDuration - view.duration)
+      )
+      if (Math.abs(start - view.start) < 0.001) return
+      file.timelineView = { zoom: view.zoom, start }
+    }
+    renderTrimUI()
+  }, { passive: false })
+
   $('#history-button').addEventListener('click', () => openModal('history'))
   $('#reset-settings').addEventListener('click', () => {
     state.settings = { ...DEFAULT_SETTINGS }

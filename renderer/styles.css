@@ -4678,3 +4678,12 @@ input:focus-visible {
   background: var(--line);
   flex: none;
 }
+
+/* Timeline viewport clips the filmstrip when zoomed/panned. */
+
+.clip-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 4px;
+}
