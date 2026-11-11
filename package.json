@@ -1,19 +1,19 @@
-{
-  "name": "frameferry",
-  "productName": "帧渡 FrameFerry",
-  "version": "1.8.36",
-  "private": true,
-  "description": "帧渡 FrameFerry — 本地优先的 Windows 桌面视频格式转换器",
-  "author": "杨汶朋",
-  "license": "MIT",
-  "type": "module",
-  "main": "electron/main.mjs",
-  "scripts": {
-    "start": "node scripts/dev.mjs",
-    "dev": "node scripts/dev.mjs",
-    "check": "node scripts/check-env.mjs"
-  },
-  "devDependencies": {
-    "electron": "^44.7.0"
-  }
+﻿{
+    "name":  "frameferry",
+    "productName":  "帧渡 FrameFerry",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "帧渡 FrameFerry — 本地优先的 Windows 桌面视频格式转换器",
+    "author":  "杨汶朋",
+    "license":  "MIT",
+    "type":  "module",
+    "main":  "electron/main.mjs",
+    "scripts":  {
+                    "start":  "node scripts/dev.mjs",
+                    "dev":  "node scripts/dev.mjs",
+                    "check":  "node scripts/check-env.mjs"
+                },
+    "devDependencies":  {
+                            "electron":  "^44.7.0"
+                        }
 }

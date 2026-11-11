@@ -1,4 +1,4 @@
-# 帧渡 FrameFerry
+﻿# 帧渡 FrameFerry
 
 > 把视频安全地摆渡到另一种格式。没有上传，没有账号，也没有等待。
 
@@ -30,7 +30,7 @@ pnpm start
 
 ### 安装版
 
-Windows 安装程序发布在 [Releases](https://github.com/04wenpeng/FrameFerry/releases/latest)，下载 `FrameFerry-Setup-1.8.36.exe` 后双击安装。安装后的目录包含 `FrameFerry.exe`、`resources`、DLL、`uninst.exe` 和桌面/开始菜单快捷方式。
+Windows 安装程序发布在 [Releases](https://github.com/04wenpeng/FrameFerry/releases/latest)，下载 `FrameFerry-Setup-1.0.0.exe` 后双击安装。安装后的目录包含 `FrameFerry.exe`、`resources`、DLL、`uninst.exe` 和桌面/开始菜单快捷方式。
 
 > 这是未签名的本地预览版。Windows SmartScreen 若拦截，请选择「更多信息 → 仍要运行」。应用不需要管理员权限，也不会联网。
 
@@ -184,3 +184,5 @@ npm start -- --open-file="E:\path\to\video.mp4"
 ## License
 
 代码 MIT。FFmpeg/FFprobe 二进制遵循其各自许可证（GPL/LGPL），详见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
+
