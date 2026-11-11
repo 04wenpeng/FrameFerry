@@ -1,7 +1,7 @@
 import {
   app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell
 } from 'electron'
-import { createReadStream } from 'node:fs'
+import { createReadStream, existsSync } from 'node:fs'
 import { access, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
@@ -128,8 +128,11 @@ async function loadPreferences() {
   try {
     const raw = await readFile(settingsPath, 'utf8')
     const parsed = JSON.parse(raw.replace(/^\uFEFF/, ''))
+    const savedOutputDir = typeof parsed?.defaultOutputDir === 'string' ? parsed.defaultOutputDir : ''
     preferences = {
-      defaultOutputDir: typeof parsed?.defaultOutputDir === 'string' ? parsed.defaultOutputDir : ''
+      // A remembered folder may have been deleted or moved; never let it
+      // silently recreate the old location on the next conversion.
+      defaultOutputDir: savedOutputDir && existsSync(savedOutputDir) ? savedOutputDir : ''
     }
   } catch {
     preferences = { defaultOutputDir: '' }
